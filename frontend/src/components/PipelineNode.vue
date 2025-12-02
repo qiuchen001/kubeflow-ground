@@ -40,7 +40,7 @@
             type="target" 
             :position="Position.Left" 
             :id="input.name"
-            class="!w-3 !h-3 !bg-blue-400"
+            class="custom-handle !w-3 !h-3 !bg-blue-400 opacity-50 group-hover:opacity-100 transition-opacity"
             style="left: -14px;"
           />
           <span class="ml-1 truncate" :title="input.name">{{ input.name }}</span>
@@ -56,7 +56,7 @@
             type="source" 
             :position="Position.Right" 
             :id="output.name"
-            class="!w-3 !h-3 !bg-green-400"
+            class="custom-handle !w-3 !h-3 !bg-green-400 opacity-50 group-hover:opacity-100 transition-opacity"
             style="right: -14px;"
           />
         </div>
@@ -65,8 +65,8 @@
       <!-- Fallback Handles if no inputs/outputs -->
       <div v-if="(!data.inputs || data.inputs.length === 0) && (!data.outputs || data.outputs.length === 0)" class="py-2 text-center text-gray-400 italic">
         No ports defined
-        <Handle type="target" :position="Position.Left" class="!w-3 !h-3 !bg-gray-400" />
-        <Handle type="source" :position="Position.Right" class="!w-3 !h-3 !bg-gray-400" />
+        <Handle type="target" :position="Position.Left" class="custom-handle !w-3 !h-3 !bg-gray-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+        <Handle type="source" :position="Position.Right" class="custom-handle !w-3 !h-3 !bg-gray-400 opacity-50 group-hover:opacity-100 transition-opacity" />
       </div>
     </div>
   </div>
@@ -85,3 +85,21 @@ const deleteNode = () => {
   showMenu.value = false
 }
 </script>
+
+<style scoped>
+.custom-handle:hover {
+  transform: scale(1.5);
+}
+
+.custom-handle:hover::after {
+  content: '+';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 8px;
+  color: white;
+  font-weight: bold;
+  line-height: 1;
+}
+</style>
