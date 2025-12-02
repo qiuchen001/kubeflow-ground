@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 max-w-6xl mx-auto">
+  <div class="p-6 h-full flex flex-col">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold">Components</h1>
       <button @click="openCreateModal" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
