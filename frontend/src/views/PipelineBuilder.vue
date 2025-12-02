@@ -87,7 +87,7 @@
 
 <script setup>
 import { ref, onMounted, markRaw } from 'vue'
-import { VueFlow, useVueFlow } from '@vue-flow/core'
+import { VueFlow, useVueFlow, MarkerType } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import '@vue-flow/core/dist/style.css'
@@ -154,7 +154,10 @@ const onDrop = (event) => {
 }
 
 onConnect((params) => {
-  addEdges([params])
+  addEdges([{ 
+    ...params, 
+    markerEnd: MarkerType.ArrowClosed 
+  }])
 })
 
 const onNodeClick = (event) => {
