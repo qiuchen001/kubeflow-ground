@@ -1,0 +1,1 @@
+{"id":"8ddb8aee-1a83-48f6-99d2-4f7f9a43976f","name":"List Test","description":"","image":"ubuntu:latest","command":[],"args":[],"inputs":[],"outputs":[],"resources":{"cpu_request":"","cpu_limit":"","memory_request":"","memory_limit":"","gpu_type":null,"gpu_limit":""},"volcano_enabled":false}

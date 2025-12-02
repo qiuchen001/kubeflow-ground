@@ -1,0 +1,1 @@
+{"id":"a9a0ccd9-d38d-442b-992d-f0eeb1436a9d","name":"Page Test","description":"","image":"nginx:latest","command":[],"args":[],"inputs":[],"outputs":[],"resources":{"cpu_request":"","cpu_limit":"","memory_request":"","memory_limit":"","gpu_type":null,"gpu_limit":""},"volcano_enabled":false}

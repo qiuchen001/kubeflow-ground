@@ -1,0 +1,1 @@
+{"id":"06c7b3a7-974f-4042-b3f1-86070f3fa86e","name":"test","description":"","image":"qiuchen123/mnist-ground:cu124","command":[],"args":[],"inputs":[],"outputs":[],"resources":{"cpu_request":"","cpu_limit":"","memory_request":"","memory_limit":"","gpu_type":null,"gpu_limit":""},"volcano_enabled":false}
