@@ -63,9 +63,15 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef preprocess_data(processed_data: Output[Dataset]):\n    # KFP\
-          \ \u81EA\u52A8\u5C06 output_data_dir \u6620\u5C04\u5230\u9884\u5904\u7406\
-          \u811A\u672C\u7684 --output-data-dir\n    pass\n\n"
+          \ *\n\ndef preprocess_data(processed_data: Output[Dataset]):\n    import\
+          \ subprocess\n    import sys\n\n    # \u8C03\u7528\u5BB9\u5668\u5185\u7684\
+          \u811A\u672C\n    # \u6CE8\u610F\uFF1AKFP \u4F1A\u81EA\u52A8\u6302\u8F7D\
+          \ output artifact \u7684\u8DEF\u5F84\n    cmd = [\n        \"python\", \"\
+          /app/mnist_preprocess.py\",\n        \"--output-data-dir\", processed_data.path\n\
+          \    ]\n\n    print(f\"Running command: {' '.join(cmd)}\")\n    result =\
+          \ subprocess.run(cmd, capture_output=True, text=True)\n\n    print(\"STDOUT:\"\
+          , result.stdout)\n    print(\"STDERR:\", result.stderr)\n\n    if result.returncode\
+          \ != 0:\n        sys.exit(result.returncode)\n\n"
         image: qiuchen123/kfp-mlops:mnist-prep-v1
     exec-train-model:
       container:
@@ -95,9 +101,24 @@ deploymentSpec:
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef train_model(\n    training_data: Input[Dataset],\n    epochs:\
           \ int,\n    lr: float,\n    trained_model: Output[Artifact]\n) -> NamedTuple('Outputs',\
-          \ [('accuracy', float)]): # \u6A21\u62DF\u8FD4\u56DE Accuracy\n    # KFP\
-          \ \u81EA\u52A8\u5904\u7406\u547D\u4EE4\u884C\u53C2\u6570\u6620\u5C04\n \
-          \   pass\n\n"
+          \ [('accuracy', float)]): # \u6A21\u62DF\u8FD4\u56DE Accuracy\n    import\
+          \ subprocess\n    import sys\n    import json\n    from collections import\
+          \ namedtuple\n\n    # \u8C03\u7528\u5BB9\u5668\u5185\u7684\u811A\u672C\n\
+          \    # \u6CE8\u610F\uFF1Atraining_data.path \u6307\u5411\u7684\u662F\u8F93\
+          \u5165 artifact \u7684\u8DEF\u5F84\n    # trained_model.path \u6307\u5411\
+          \u7684\u662F\u8F93\u51FA artifact \u7684\u8DEF\u5F84\n\n    cmd = [\n  \
+          \      \"python\", \"/app/mnist_train.py\",\n        \"--input-dir\", training_data.path,\n\
+          \        \"--output-model-dir\", trained_model.path,\n        \"--epochs\"\
+          , str(epochs),\n        \"--lr\", str(lr)\n    ]\n\n    print(f\"Running\
+          \ command: {' '.join(cmd)}\")\n    result = subprocess.run(cmd, capture_output=True,\
+          \ text=True)\n\n    print(\"STDOUT:\", result.stdout)\n    print(\"STDERR:\"\
+          , result.stderr)\n\n    if result.returncode != 0:\n        sys.exit(result.returncode)\n\
+          \n    # \u8BFB\u53D6\u811A\u672C\u8F93\u51FA\u7684 accuracy\n    # \u811A\
+          \u672C\u4E2D\u5199\u5230\u4E86 /tmp/accuracy_output\n    try:\n        with\
+          \ open('/tmp/accuracy_output', 'r') as f:\n            accuracy = float(f.read().strip())\n\
+          \    except Exception as e:\n        print(f\"Failed to read accuracy: {e}\"\
+          )\n        accuracy = 0.0\n\n    outputs = namedtuple('Outputs', ['accuracy'])\n\
+          \    return outputs(accuracy)\n\n"
         image: qiuchen123/kfp-mlops:mnist-train-v1
         resources:
           accelerator:

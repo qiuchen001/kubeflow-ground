@@ -39,9 +39,15 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef preprocess_data(processed_data: Output[Dataset]):\n    # KFP\
-          \ \u81EA\u52A8\u5C06 output_data_dir \u6620\u5C04\u5230\u9884\u5904\u7406\
-          \u811A\u672C\u7684 --output-data-dir\n    pass\n\n"
+          \ *\n\ndef preprocess_data(processed_data: Output[Dataset]):\n    import\
+          \ subprocess\n    import sys\n\n    # \u8C03\u7528\u5BB9\u5668\u5185\u7684\
+          \u811A\u672C\n    # \u6CE8\u610F\uFF1AKFP \u4F1A\u81EA\u52A8\u6302\u8F7D\
+          \ output artifact \u7684\u8DEF\u5F84\n    cmd = [\n        \"python\", \"\
+          /app/mnist_preprocess.py\",\n        \"--output-data-dir\", processed_data.path\n\
+          \    ]\n\n    print(f\"Running command: {' '.join(cmd)}\")\n    result =\
+          \ subprocess.run(cmd, capture_output=True, text=True)\n\n    print(\"STDOUT:\"\
+          , result.stdout)\n    print(\"STDERR:\", result.stderr)\n\n    if result.returncode\
+          \ != 0:\n        sys.exit(result.returncode)\n\n"
         image: qiuchen123/kfp-mlops:mnist-prep-v1
 pipelineInfo:
   name: preprocess-data

@@ -9,8 +9,24 @@ REPO = "qiuchen123/kfp-mlops"
     output_component_file="mnist_preprocess_component.yaml",
 )
 def preprocess_data(processed_data: Output[Dataset]):
-    # KFP 自动将 output_data_dir 映射到预处理脚本的 --output-data-dir
-    pass
+    import subprocess
+    import sys
+    
+    # 调用容器内的脚本
+    # 注意：KFP 会自动挂载 output artifact 的路径
+    cmd = [
+        "python", "/app/mnist_preprocess.py",
+        "--output-data-dir", processed_data.path
+    ]
+    
+    print(f"Running command: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    
+    print("STDOUT:", result.stdout)
+    print("STDERR:", result.stderr)
+    
+    if result.returncode != 0:
+        sys.exit(result.returncode)
 
 @component(
     base_image=f"{REPO}:mnist-train-v1",
@@ -22,8 +38,43 @@ def train_model(
     lr: float,
     trained_model: Output[Artifact]
 ) -> NamedTuple('Outputs', [('accuracy', float)]): # 模拟返回 Accuracy
-    # KFP 自动处理命令行参数映射
-    pass
+    import subprocess
+    import sys
+    import json
+    from collections import namedtuple
+    
+    # 调用容器内的脚本
+    # 注意：training_data.path 指向的是输入 artifact 的路径
+    # trained_model.path 指向的是输出 artifact 的路径
+    
+    cmd = [
+        "python", "/app/mnist_train.py",
+        "--input-dir", training_data.path,
+        "--output-model-dir", trained_model.path,
+        "--epochs", str(epochs),
+        "--lr", str(lr)
+    ]
+    
+    print(f"Running command: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    
+    print("STDOUT:", result.stdout)
+    print("STDERR:", result.stderr)
+    
+    if result.returncode != 0:
+        sys.exit(result.returncode)
+        
+    # 读取脚本输出的 accuracy
+    # 脚本中写到了 /tmp/accuracy_output
+    try:
+        with open('/tmp/accuracy_output', 'r') as f:
+            accuracy = float(f.read().strip())
+    except Exception as e:
+        print(f"Failed to read accuracy: {e}")
+        accuracy = 0.0
+        
+    outputs = namedtuple('Outputs', ['accuracy'])
+    return outputs(accuracy)
 
 # 执行生成（直接运行 Python 脚本）
 # python component_defs.py 
