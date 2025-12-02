@@ -1,0 +1,6 @@
+FROM python:3.10-slim
+WORKDIR /app
+COPY requirements.prep.txt .
+RUN pip install --no-cache-dir -r requirements.prep.txt
+COPY mnist_preprocess.py .
+ENTRYPOINT ["python", "mnist_preprocess.py"]
