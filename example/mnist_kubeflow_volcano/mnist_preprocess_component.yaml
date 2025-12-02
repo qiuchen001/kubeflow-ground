@@ -1,0 +1,71 @@
+# PIPELINE DEFINITION
+# Name: preprocess-data
+# Outputs:
+#    processed_data: system.Dataset
+components:
+  comp-preprocess-data:
+    executorLabel: exec-preprocess-data
+    outputDefinitions:
+      artifacts:
+        processed_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-preprocess-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - preprocess_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.15.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef preprocess_data(processed_data: Output[Dataset]):\n    # KFP\
+          \ \u81EA\u52A8\u5C06 output_data_dir \u6620\u5C04\u5230\u9884\u5904\u7406\
+          \u811A\u672C\u7684 --output-data-dir\n    pass\n\n"
+        image: qiuchen123/kfp-mlops:mnist-prep-v1
+pipelineInfo:
+  name: preprocess-data
+root:
+  dag:
+    outputs:
+      artifacts:
+        processed_data:
+          artifactSelectors:
+          - outputArtifactKey: processed_data
+            producerSubtask: preprocess-data
+    tasks:
+      preprocess-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-preprocess-data
+        taskInfo:
+          name: preprocess-data
+  outputDefinitions:
+    artifacts:
+      processed_data:
+        artifactType:
+          schemaTitle: system.Dataset
+          schemaVersion: 0.0.1
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.15.1

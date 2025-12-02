@@ -1,0 +1,163 @@
+# PIPELINE DEFINITION
+# Name: mnist-volcano-training
+# Inputs:
+#    epochs: int [Default: 10.0]
+#    lr: float [Default: 0.001]
+components:
+  comp-preprocess-data:
+    executorLabel: exec-preprocess-data
+    outputDefinitions:
+      artifacts:
+        processed_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      artifacts:
+        training_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        epochs:
+          parameterType: NUMBER_INTEGER
+        lr:
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      artifacts:
+        trained_model:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        accuracy:
+          parameterType: NUMBER_DOUBLE
+defaultPipelineRoot: s3://your-kfp-artifact-store/mnist-runs
+deploymentSpec:
+  executors:
+    exec-preprocess-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - preprocess_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.15.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef preprocess_data(processed_data: Output[Dataset]):\n    # KFP\
+          \ \u81EA\u52A8\u5C06 output_data_dir \u6620\u5C04\u5230\u9884\u5904\u7406\
+          \u811A\u672C\u7684 --output-data-dir\n    pass\n\n"
+        image: qiuchen123/kfp-mlops:mnist-prep-v1
+    exec-train-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.15.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model(\n    training_data: Input[Dataset],\n    epochs:\
+          \ int,\n    lr: float,\n    trained_model: Output[Artifact]\n) -> NamedTuple('Outputs',\
+          \ [('accuracy', float)]): # \u6A21\u62DF\u8FD4\u56DE Accuracy\n    # KFP\
+          \ \u81EA\u52A8\u5904\u7406\u547D\u4EE4\u884C\u53C2\u6570\u6620\u5C04\n \
+          \   pass\n\n"
+        image: qiuchen123/kfp-mlops:mnist-train-v1
+        resources:
+          accelerator:
+            count: '1'
+            resourceCount: '1'
+          cpuLimit: 4.0
+          memoryLimit: 16.0
+          resourceCpuLimit: '4'
+          resourceMemoryLimit: 16G
+pipelineInfo:
+  name: mnist-volcano-training
+root:
+  dag:
+    tasks:
+      preprocess-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-preprocess-data
+        taskInfo:
+          name: preprocess-data
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - preprocess-data
+        inputs:
+          artifacts:
+            training_data:
+              taskOutputArtifact:
+                outputArtifactKey: processed_data
+                producerTask: preprocess-data
+          parameters:
+            epochs:
+              componentInputParameter: epochs
+            lr:
+              componentInputParameter: lr
+        taskInfo:
+          name: train-model
+  inputDefinitions:
+    parameters:
+      epochs:
+        defaultValue: 10.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      lr:
+        defaultValue: 0.001
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.15.1
+---
+platforms:
+  kubernetes:
+    deploymentSpec:
+      executors:
+        exec-train-model:
+          podMetadata:
+            annotations:
+              scheduling.k8s.io/group-name: mnist-gpu-group
+              scheduling.volcano.sh/schedulerName: volcano

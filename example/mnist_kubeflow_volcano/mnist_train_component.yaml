@@ -1,0 +1,120 @@
+# PIPELINE DEFINITION
+# Name: train-model
+# Inputs:
+#    epochs: int
+#    lr: float
+#    training_data: system.Dataset
+# Outputs:
+#    accuracy: float
+#    trained_model: system.Artifact
+components:
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      artifacts:
+        training_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        epochs:
+          parameterType: NUMBER_INTEGER
+        lr:
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      artifacts:
+        trained_model:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        accuracy:
+          parameterType: NUMBER_DOUBLE
+deploymentSpec:
+  executors:
+    exec-train-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.15.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model(\n    training_data: Input[Dataset],\n    epochs:\
+          \ int,\n    lr: float,\n    trained_model: Output[Artifact]\n) -> NamedTuple('Outputs',\
+          \ [('accuracy', float)]): # \u6A21\u62DF\u8FD4\u56DE Accuracy\n    # KFP\
+          \ \u81EA\u52A8\u5904\u7406\u547D\u4EE4\u884C\u53C2\u6570\u6620\u5C04\n \
+          \   pass\n\n"
+        image: qiuchen123/kfp-mlops:mnist-train-v1
+pipelineInfo:
+  name: train-model
+root:
+  dag:
+    outputs:
+      artifacts:
+        trained_model:
+          artifactSelectors:
+          - outputArtifactKey: trained_model
+            producerSubtask: train-model
+      parameters:
+        accuracy:
+          valueFromParameter:
+            outputParameterKey: accuracy
+            producerSubtask: train-model
+    tasks:
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        inputs:
+          artifacts:
+            training_data:
+              componentInputArtifact: training_data
+          parameters:
+            epochs:
+              componentInputParameter: epochs
+            lr:
+              componentInputParameter: lr
+        taskInfo:
+          name: train-model
+  inputDefinitions:
+    artifacts:
+      training_data:
+        artifactType:
+          schemaTitle: system.Dataset
+          schemaVersion: 0.0.1
+    parameters:
+      epochs:
+        parameterType: NUMBER_INTEGER
+      lr:
+        parameterType: NUMBER_DOUBLE
+  outputDefinitions:
+    artifacts:
+      trained_model:
+        artifactType:
+          schemaTitle: system.Artifact
+          schemaVersion: 0.0.1
+    parameters:
+      accuracy:
+        parameterType: NUMBER_DOUBLE
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.15.1
