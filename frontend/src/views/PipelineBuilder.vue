@@ -1,39 +1,68 @@
 <template>
-  <div class="p-6 max-w-6xl mx-auto h-full flex flex-col">
-    <div class="flex justify-between items-center mb-6">
+  <div class="p-6 h-full flex flex-col">
+    <div class="flex justify-between items-center mb-4 border-b pb-4">
       <h1 class="text-2xl font-bold">Pipeline Builder</h1>
-    </div>
-
-    <div class="flex-1 bg-white rounded shadow overflow-hidden flex border">
-      <!-- Sidebar -->
-      <div class="w-64 bg-gray-50 border-r p-4 flex flex-col">
-        <h2 class="text-lg font-bold mb-4">Components</h2>
-        <div class="flex-1 overflow-y-auto space-y-2">
-          <div 
-            v-for="comp in components" 
-            :key="comp.id"
-            class="bg-white p-2 rounded shadow cursor-move hover:bg-blue-50 border"
-            draggable="true"
-            @dragstart="onDragStart($event, comp)"
+      
+      <!-- Component Dropdown & Pipeline Controls -->
+      <div class="flex items-center space-x-4">
+        <!-- Component Dropdown -->
+        <div class="relative">
+          <button 
+            @click="isDropdownOpen = !isDropdownOpen"
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center"
           >
-            <div class="font-medium">{{ comp.name }}</div>
-            <div class="text-xs text-gray-500 truncate">{{ comp.description }}</div>
+            <span>Add Component</span>
+            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          <!-- Dropdown Menu -->
+          <div 
+            v-if="isDropdownOpen"
+            class="absolute top-full right-0 mt-2 w-64 bg-white border rounded shadow-xl z-50 max-h-96 overflow-y-auto"
+          >
+            <div class="p-2 text-xs text-gray-500 uppercase font-semibold border-b bg-gray-50">
+              Drag to Canvas
+            </div>
+            <div class="p-2 space-y-2">
+              <div 
+                v-for="comp in components" 
+                :key="comp.id"
+                class="bg-white p-3 rounded border shadow-sm cursor-move hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                draggable="true"
+                @dragstart="onDragStart($event, comp)"
+              >
+                <div class="font-medium text-sm">{{ comp.name }}</div>
+                <div class="text-xs text-gray-500 truncate">{{ comp.description }}</div>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <div class="mt-4 border-t pt-4">
-          <label class="block text-sm font-medium mb-1">Pipeline Name</label>
-          <input v-model="pipelineName" class="w-full border rounded p-1 mb-2" />
-          <button @click="runPipeline" class="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">
-            Run Pipeline
+
+        <!-- Pipeline Name & Run -->
+        <div class="flex items-center space-x-2 border-l pl-4">
+          <input 
+            v-model="pipelineName" 
+            class="border rounded px-3 py-2 text-sm w-48" 
+            placeholder="Pipeline Name"
+          />
+          <button 
+            @click="runPipeline" 
+            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm font-medium"
+          >
+            Run
           </button>
         </div>
       </div>
+    </div>
 
+    <div class="flex-1 w-full bg-white rounded shadow overflow-hidden flex border relative">
       <!-- Canvas -->
-      <div class="flex-1 h-full bg-gray-50 relative flex" @drop="onDrop" @dragover.prevent>
-        <div class="flex-1 relative">
+      <div class="flex-1 h-full bg-gray-50 relative flex min-w-0" @drop="onDrop" @dragover.prevent>
+        <div class="flex-1 relative h-full">
           <VueFlow 
+            class="absolute inset-0"
             v-model="elements" 
             :default-zoom="1.5" 
             :min-zoom="0.2" 
@@ -78,6 +107,7 @@ const components = ref([])
 const pipelineName = ref('My Pipeline')
 const elements = ref([])
 const selectedNode = ref(null)
+const isDropdownOpen = ref(false)
 
 let id = 0
 const getId = () => `node_${id++}`
