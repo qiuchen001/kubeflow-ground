@@ -24,7 +24,7 @@ except FileNotFoundError:
 @dsl.pipeline(
     name='mnist-volcano-training',
     # 🌟 替换为你的实际 Artifact Store (e.g., gs://my-bucket/runs 或 s3://my-bucket/runs)
-    pipeline_root='s3://your-kfp-artifact-store/mnist-runs' 
+    pipeline_root='minio://minio-service.kubeflow.svc:9000/mlpipeline/mnist-runs' 
 )
 def mnist_pipeline(
     epochs: int = 10, 

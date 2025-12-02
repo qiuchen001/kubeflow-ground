@@ -34,7 +34,7 @@ components:
       parameters:
         accuracy:
           parameterType: NUMBER_DOUBLE
-defaultPipelineRoot: s3://your-kfp-artifact-store/mnist-runs
+defaultPipelineRoot: minio://minio-service.kubeflow.svc:9000/mlpipeline/mnist-runs
 deploymentSpec:
   executors:
     exec-preprocess-data:
