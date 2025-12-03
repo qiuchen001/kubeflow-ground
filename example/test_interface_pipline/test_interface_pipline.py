@@ -50,7 +50,8 @@ def create_dynamic_pipeline(interface: PipelineInterface):
         return s[:128]
 
     @dsl.pipeline(
-        name="dynamic-pipeline",
+        # name="dynamic-pipeline",
+        name=_sanitize_pipeline_name(interface.pipeline_name),
         pipeline_root=interface.pipeline_root,
         description=f"动态生成的工作流：{interface.pipeline_name}",
         display_name=interface.pipeline_name
@@ -153,7 +154,7 @@ if __name__ == "__main__":
 
     # 配置工作流、组件、依赖关系
     pipeline_interface = PipelineInterface(
-        pipeline_name="动态配置-数据预处理+模型训练",
+        pipeline_name="Dynamic Configuration - Data Preprocessing + Model Training",
         pipeline_root="s3://kubeflow-pipeline/pipeline-root/",
         components=[
             # 组件1：数据预处理
@@ -187,3 +188,14 @@ if __name__ == "__main__":
         package_path="dynamic-minio-pipeline.yaml"
     )
     print("Pipeline已生成：dynamic-minio-pipeline.yaml")
+
+    # 提交到KFP API Server运行
+    from kfp import Client
+    client = Client(host="http://localhost:30088")
+    run = client.create_run_from_pipeline_package(
+        pipeline_file="dynamic-minio-pipeline.yaml",
+        arguments={}
+    )
+    # print("Run URL:", run.run.url if hasattr(run.run, "url") else run.run.id)
+    print("Run:", run)
+

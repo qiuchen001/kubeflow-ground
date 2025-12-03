@@ -65,7 +65,7 @@ def mnist_pipeline(
 #     package_path='mnist_pipeline.yaml'
 # )
 
-print("Pipeline 编译成功：mnist_pipeline.yaml")
+# print("Pipeline 编译成功：mnist_pipeline.yaml")
 
 # 提交到 KFP API Server 运行
 try:
