@@ -2,52 +2,121 @@
 # Name: dynamic-configuration-data-preprocessing-model-training
 # Description: 动态生成的工作流：Dynamic Configuration - Data Preprocessing + Model Training
 components:
-  comp-preprocess:
-    executorLabel: exec-preprocess
-    inputDefinitions:
-      parameters:
-        raw_data:
-          parameterType: STRING
+  comp-preprocess-data:
+    executorLabel: exec-preprocess-data
     outputDefinitions:
-      parameters:
-        clean_data:
-          parameterType: STRING
-  comp-train:
-    executorLabel: exec-train
+      artifacts:
+        processed_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-train-model:
+    executorLabel: exec-train-model
     inputDefinitions:
+      artifacts:
+        training_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
       parameters:
-        train_data:
-          parameterType: STRING
+        epochs:
+          parameterType: NUMBER_INTEGER
+        lr:
+          parameterType: NUMBER_DOUBLE
     outputDefinitions:
-      parameters:
+      artifacts:
         trained_model:
-          parameterType: STRING
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        accuracy:
+          parameterType: NUMBER_DOUBLE
 defaultPipelineRoot: s3://kubeflow-pipeline/pipeline-root/
 deploymentSpec:
   executors:
-    exec-preprocess:
+    exec-preprocess-data:
       container:
         args:
-        - --output-data-dir
-        - '{{$.outputs.parameters[''clean_data''].output_file}}'
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - preprocess_data
         command:
-        - python
-        - /app/mnist_preprocess.py
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.15.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef preprocess_data(processed_data: Output[Dataset]):\n    import\
+          \ subprocess\n    import sys\n\n    # \u8C03\u7528\u5BB9\u5668\u5185\u7684\
+          \u811A\u672C\n    # \u6CE8\u610F\uFF1AKFP \u4F1A\u81EA\u52A8\u6302\u8F7D\
+          \ output artifact \u7684\u8DEF\u5F84\n    cmd = [\n        \"python\", \"\
+          /app/mnist_preprocess.py\",\n        \"--output-data-dir\", processed_data.path\n\
+          \    ]\n\n    print(f\"Running command: {' '.join(cmd)}\")\n    result =\
+          \ subprocess.run(cmd, capture_output=True, text=True)\n\n    print(\"STDOUT:\"\
+          , result.stdout)\n    print(\"STDERR:\", result.stderr)\n\n    if result.returncode\
+          \ != 0:\n        sys.exit(result.returncode)\n\n"
         image: qiuchen123/kfp-mlops:mnist-prep-v1
-    exec-train:
+    exec-train-model:
       container:
         args:
-        - --epochs
-        - '10'
-        - --lr
-        - '0.001'
-        - --input-dir
-        - '{{$.inputs.parameters[''train_data'']}}'
-        - --output-model-dir
-        - '{{$.outputs.parameters[''trained_model''].output_file}}'
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model
         command:
-        - python
-        - /app/mnist_train.py
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.15.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model(\n    training_data: Input[Dataset],\n    epochs:\
+          \ int,\n    lr: float,\n    trained_model: Output[Artifact]\n) -> NamedTuple('Outputs',\
+          \ [('accuracy', float)]): # \u6A21\u62DF\u8FD4\u56DE Accuracy\n    import\
+          \ subprocess\n    import sys\n    import json\n    from collections import\
+          \ namedtuple\n\n    # \u8C03\u7528\u5BB9\u5668\u5185\u7684\u811A\u672C\n\
+          \    # \u6CE8\u610F\uFF1Atraining_data.path \u6307\u5411\u7684\u662F\u8F93\
+          \u5165 artifact \u7684\u8DEF\u5F84\n    # trained_model.path \u6307\u5411\
+          \u7684\u662F\u8F93\u51FA artifact \u7684\u8DEF\u5F84\n\n    cmd = [\n  \
+          \      \"python\", \"/app/mnist_train.py\",\n        \"--input-dir\", training_data.path,\n\
+          \        \"--output-model-dir\", trained_model.path,\n        \"--epochs\"\
+          , str(epochs),\n        \"--lr\", str(lr)\n    ]\n\n    print(f\"Running\
+          \ command: {' '.join(cmd)}\")\n    result = subprocess.run(cmd, capture_output=True,\
+          \ text=True)\n\n    print(\"STDOUT:\", result.stdout)\n    print(\"STDERR:\"\
+          , result.stderr)\n\n    if result.returncode != 0:\n        sys.exit(result.returncode)\n\
+          \n    # \u8BFB\u53D6\u811A\u672C\u8F93\u51FA\u7684 accuracy\n    # \u811A\
+          \u672C\u4E2D\u5199\u5230\u4E86 /tmp/accuracy_output\n    try:\n        with\
+          \ open('/tmp/accuracy_output', 'r') as f:\n            accuracy = float(f.read().strip())\n\
+          \    except Exception as e:\n        print(f\"Failed to read accuracy: {e}\"\
+          )\n        accuracy = 0.0\n\n    outputs = namedtuple('Outputs', ['accuracy'])\n\
+          \    return outputs(accuracy)\n\n"
         image: qiuchen123/kfp-mlops:mnist-train-v1
 pipelineInfo:
   description: "\u52A8\u6001\u751F\u6210\u7684\u5DE5\u4F5C\u6D41\uFF1ADynamic Configuration\
@@ -57,31 +126,34 @@ pipelineInfo:
 root:
   dag:
     tasks:
-      preprocess:
+      preprocess-data:
         cachingOptions:
           enableCache: true
         componentRef:
-          name: comp-preprocess
-        inputs:
-          parameters:
-            raw_data:
-              runtimeValue:
-                constant: s3://kubeflow-pipeline/raw/train_data.csv
+          name: comp-preprocess-data
         taskInfo:
-          name: preprocess
-      train:
+          name: preprocess-data
+      train-model:
         cachingOptions:
           enableCache: true
         componentRef:
-          name: comp-train
+          name: comp-train-model
         dependentTasks:
-        - preprocess
+        - preprocess-data
         inputs:
+          artifacts:
+            training_data:
+              taskOutputArtifact:
+                outputArtifactKey: processed_data
+                producerTask: preprocess-data
           parameters:
-            train_data:
+            epochs:
               runtimeValue:
-                constant: s3://kubeflow-pipeline/processed/clean_data.csv
+                constant: 10.0
+            lr:
+              runtimeValue:
+                constant: 0.001
         taskInfo:
-          name: train
+          name: train-model
 schemaVersion: 2.1.0
 sdkVersion: kfp-2.15.1

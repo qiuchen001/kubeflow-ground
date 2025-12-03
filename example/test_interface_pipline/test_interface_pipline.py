@@ -92,10 +92,10 @@ def create_dynamic_pipeline(interface: PipelineInterface):
                 # 预处理脚本仅接受 --output-data-dir，不注入其它输入参数
                 if name == "preprocess":
                     continue
-                # 训练镜像常用 --input-dir；其余按原键
-                if name == "train" and orig_key in orig_inputs:
+                # 训练镜像使用 --input-dir 读取数据集目录，注入 inputPath
+                if name == "train" and orig_key.replace('-', '_') == "train_data":
                     yaml_lines.append("      - '--input-dir'")
-                    yaml_lines.append(f"      - {{inputValue: {san_key}}}")
+                    yaml_lines.append(f"      - {{inputPath: {san_key}}}")
                 else:
                     yaml_lines.append(f"      - '--{orig_key}'")
                     yaml_lines.append(f"      - {{inputValue: {san_key}}}")
@@ -113,14 +113,22 @@ def create_dynamic_pipeline(interface: PipelineInterface):
             # 不注入 minio-endpoint，当前容器脚本未消费该参数
 
             input_section = []
-            for san_key in sanitized_inputs:
+            for orig_key, san_key in zip(orig_inputs, sanitized_inputs):
                 input_section.append(f"  - name: {san_key}")
-                input_section.append("    type: string")
+                if name == "train" and orig_key.replace('-', '_') == "train_data":
+                    input_section.append("    type: Dataset")
+                else:
+                    input_section.append("    type: string")
             # 不声明未使用的 minio_endpoint 输入
             output_section = []
-            for san_key in sanitized_outputs:
+            for orig_key, san_key in zip(orig_outputs, sanitized_outputs):
                 output_section.append(f"  - name: {san_key}")
-                output_section.append("    type: string")
+                if name == "preprocess":
+                    output_section.append("    type: Dataset")
+                elif name == "train" and orig_key.replace('-', '_') == "trained_model":
+                    output_section.append("    type: Artifact")
+                else:
+                    output_section.append("    type: string")
             insert_index = 1
             if input_section:
                 yaml_lines.insert(insert_index, "inputs:")
@@ -133,6 +141,18 @@ def create_dynamic_pipeline(interface: PipelineInterface):
 
         loaded_components = {}
         for comp_name, cfg in components_by_name.items():
+            # 优先使用已定义的 v2 组件以获得 Artifact 语义
+            if comp_name == "preprocess":
+                import os
+                v2_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "mnist_kubeflow_volcano", "mnist_preprocess_component.yaml"))
+                loaded_components[comp_name] = components.load_component_from_file(v2_path)
+                continue
+            if comp_name == "train":
+                import os
+                v2_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "mnist_kubeflow_volcano", "mnist_train_component.yaml"))
+                loaded_components[comp_name] = components.load_component_from_file(v2_path)
+                continue
+            # 其它组件使用通用文本规范
             comp_yaml = build_component_yaml(cfg)
             loaded_components[comp_name] = components.load_component_from_text(comp_yaml)
 
@@ -150,14 +170,46 @@ def create_dynamic_pipeline(interface: PipelineInterface):
         for comp_name, cfg in components_by_name.items():
             comp = loaded_components[comp_name]
             call_kwargs = {}
+            # 解析 arguments 中的数值参数（如 epochs, lr）
+            def parse_args_to_kwargs(args_list):
+                m = {}
+                for i in range(0, len(args_list), 2):
+                    try:
+                        flag = str(args_list[i])
+                        val = args_list[i+1]
+                    except Exception:
+                        continue
+                    if flag == "--epochs":
+                        m["epochs"] = int(val)
+                    elif flag in ("--lr", "--learning-rate"):
+                        m["lr"] = float(val)
+                return m
+            args_kwargs = parse_args_to_kwargs(cfg.get("arguments", []))
+
+            # 针对 v2 预处理组件：无输入参数，直接调用
+            if comp_name == "preprocess":
+                task = comp()
+                tasks[comp_name] = task
+                continue
+
+            # 针对 v2 训练组件：仅传入 training_data、epochs、lr
+            if comp_name == "train":
+                # 依赖映射：来自预处理的 Dataset Artifact
+                if "preprocess" in tasks:
+                    call_kwargs["training_data"] = tasks["preprocess"].outputs["processed_data"]
+                # 数值参数
+                for k, v in args_kwargs.items():
+                    call_kwargs[k] = v
+                task = comp(**call_kwargs)
+                tasks[comp_name] = task
+                continue
+
+            # 其它组件：使用通用输入映射与依赖替换
             for k, v in final_inputs_map.get(comp_name, {}).items():
                 call_kwargs[k] = v
-            # 不传递未使用的 minio_endpoint
-            # 用依赖的输出替换输入
             if comp_name in interface.dependencies:
                 for depend_comp in interface.dependencies[comp_name]:
                     if depend_comp in tasks:
-                        # 匹配同名的原始键
                         for orig_input_key, san_input_key in orig_to_san_keys.get(comp_name, {}).items():
                             if orig_input_key in orig_to_san_outputs.get(depend_comp, {}):
                                 up_san_out = orig_to_san_outputs[depend_comp][orig_input_key]
@@ -220,7 +272,7 @@ if __name__ == "__main__":
     )
     print(f"Pipeline已生成：{package_path}")
 
-    # 提交到KFP API Server运行
+    # 提交到KFP API Server运行（此示例暂不自动提交）
     from kfp import Client
     client = Client(host="http://localhost:30088")
     run = client.create_run_from_pipeline_package(
