@@ -71,6 +71,8 @@ def create_dynamic_pipeline(interface: PipelineInterface):
             command = cfg.get("command", [])
             orig_inputs = list(cfg.get("inputs", {}).keys())
             sanitized_inputs = [sanitize_name(k) for k in orig_inputs]
+            orig_outputs = list(cfg.get("outputs", {}).keys())
+            sanitized_outputs = [sanitize_name(k) for k in orig_outputs]
             args_const = [str(a) for a in cfg.get("arguments", [])]
             has_minio = bool(interface.minio_config)
             yaml_lines = [
@@ -87,8 +89,24 @@ def create_dynamic_pipeline(interface: PipelineInterface):
             for a in args_const:
                 yaml_lines.append(f"      - '{a}'")
             for orig_key, san_key in zip(orig_inputs, sanitized_inputs):
-                yaml_lines.append(f"      - '--{orig_key}'")
-                yaml_lines.append(f"      - {{inputValue: {san_key}}}")
+                # 训练镜像常用 --input-dir；其余按原键
+                if name == "train" and orig_key in orig_inputs:
+                    yaml_lines.append("      - '--input-dir'")
+                    yaml_lines.append(f"      - {{inputValue: {san_key}}}")
+                else:
+                    yaml_lines.append(f"      - '--{orig_key}'")
+                    yaml_lines.append(f"      - {{inputValue: {san_key}}}")
+            # 输出目录使用 OutputPath，占位符由后端注入
+            for orig_key, san_key in zip(orig_outputs, sanitized_outputs):
+                if name == "preprocess":
+                    yaml_lines.append("      - '--output-data-dir'")
+                    yaml_lines.append(f"      - {{outputPath: {san_key}}}")
+                elif name == "train" and orig_key in orig_outputs:
+                    yaml_lines.append("      - '--output-model-dir'")
+                    yaml_lines.append(f"      - {{outputPath: {san_key}}}")
+                else:
+                    yaml_lines.append(f"      - '--{orig_key}'")
+                    yaml_lines.append(f"      - {{outputPath: {san_key}}}")
             if has_minio:
                 yaml_lines.append("      - '--minio-endpoint'")
                 yaml_lines.append("      - {inputValue: minio_endpoint}")
@@ -100,9 +118,18 @@ def create_dynamic_pipeline(interface: PipelineInterface):
             if has_minio:
                 input_section.append("  - name: minio_endpoint")
                 input_section.append("    type: string")
+            output_section = []
+            for san_key in sanitized_outputs:
+                output_section.append(f"  - name: {san_key}")
+                output_section.append("    type: string")
+            insert_index = 1
             if input_section:
-                yaml_lines.insert(1, "inputs:")
-                yaml_lines[2:2] = input_section
+                yaml_lines.insert(insert_index, "inputs:")
+                yaml_lines[insert_index+1:insert_index+1] = input_section
+                insert_index += 1 + len(input_section)
+            if output_section:
+                yaml_lines.insert(insert_index, "outputs:")
+                yaml_lines[insert_index+1:insert_index+1] = output_section
             return "\n".join(yaml_lines)
 
         loaded_components = {}
@@ -113,19 +140,14 @@ def create_dynamic_pipeline(interface: PipelineInterface):
         tasks = {}
         final_inputs_map: Dict[str, Dict[str, str]] = {}
         orig_to_san_keys: Dict[str, Dict[str, str]] = {}
+        orig_to_san_outputs: Dict[str, Dict[str, str]] = {}
         for comp_name, cfg in components_by_name.items():
             inputs_map = dict(cfg.get("inputs", {}))
             san_map = {sanitize_name(k): v for k, v in inputs_map.items()}
             final_inputs_map[comp_name] = san_map
             orig_to_san_keys[comp_name] = {k: sanitize_name(k) for k in inputs_map.keys()}
-        for target_comp, depend_comps in interface.dependencies.items():
-            target_inputs_san = final_inputs_map.get(target_comp, {})
-            target_orig_to_san = orig_to_san_keys.get(target_comp, {})
-            for depend_comp in depend_comps:
-                depend_cfg = components_by_name[depend_comp]
-                for orig_input_key, san_input_key in target_orig_to_san.items():
-                    if orig_input_key in depend_cfg.get("outputs", {}):
-                        target_inputs_san[san_input_key] = depend_cfg["outputs"][orig_input_key]
+            orig_to_san_outputs[comp_name] = {k: sanitize_name(k) for k in cfg.get("outputs", {}).keys()}
+        # 构建任务时，若存在依赖，使用上游 task.outputs 作为下游输入
         for comp_name, cfg in components_by_name.items():
             comp = loaded_components[comp_name]
             call_kwargs = {}
@@ -133,6 +155,15 @@ def create_dynamic_pipeline(interface: PipelineInterface):
                 call_kwargs[k] = v
             if interface.minio_config:
                 call_kwargs["minio_endpoint"] = interface.minio_config["endpoint"]
+            # 用依赖的输出替换输入
+            if comp_name in interface.dependencies:
+                for depend_comp in interface.dependencies[comp_name]:
+                    if depend_comp in tasks:
+                        # 匹配同名的原始键
+                        for orig_input_key, san_input_key in orig_to_san_keys.get(comp_name, {}).items():
+                            if orig_input_key in orig_to_san_outputs.get(depend_comp, {}):
+                                up_san_out = orig_to_san_outputs[depend_comp][orig_input_key]
+                                call_kwargs[san_input_key] = tasks[depend_comp].outputs[up_san_out]
             task = comp(**call_kwargs)
             tasks[comp_name] = task
         for target_comp, depend_comps in interface.dependencies.items():

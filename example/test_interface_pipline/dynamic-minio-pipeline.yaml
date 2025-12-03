@@ -10,6 +10,10 @@ components:
           parameterType: STRING
         raw_data:
           parameterType: STRING
+    outputDefinitions:
+      parameters:
+        clean_data:
+          parameterType: STRING
   comp-train:
     executorLabel: exec-train
     inputDefinitions:
@@ -17,6 +21,10 @@ components:
         minio_endpoint:
           parameterType: STRING
         train_data:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        trained_model:
           parameterType: STRING
 defaultPipelineRoot: s3://kubeflow-pipeline/pipeline-root/
 deploymentSpec:
@@ -26,6 +34,8 @@ deploymentSpec:
         args:
         - --raw-data
         - '{{$.inputs.parameters[''raw_data'']}}'
+        - --output-data-dir
+        - '{{$.outputs.parameters[''clean_data''].output_file}}'
         - --minio-endpoint
         - '{{$.inputs.parameters[''minio_endpoint'']}}'
         command:
@@ -39,8 +49,10 @@ deploymentSpec:
         - '10'
         - --learning-rate
         - '0.001'
-        - --train-data
+        - --input-dir
         - '{{$.inputs.parameters[''train_data'']}}'
+        - --output-model-dir
+        - '{{$.outputs.parameters[''trained_model''].output_file}}'
         - --minio-endpoint
         - '{{$.inputs.parameters[''minio_endpoint'']}}'
         command:
