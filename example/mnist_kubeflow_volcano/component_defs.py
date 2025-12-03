@@ -5,7 +5,7 @@ from typing import NamedTuple
 REPO = "qiuchen123/kfp-mlops" 
 
 @component(
-    base_image=f"{REPO}:mnist-prep-v1",
+    base_image=f"{REPO}:mnist-prep-v2",
     output_component_file="mnist_preprocess_component.yaml",
 )
 def preprocess_data(raw_data: Input[Dataset] = None, processed_data: Output[Dataset] = None):

@@ -57,7 +57,7 @@ deploymentSpec:
           \ text=True)\n    print(\"STDOUT:\", result.stdout)\n    print(\"STDERR:\"\
           , result.stderr)\n    if result.returncode != 0:\n        sys.exit(result.returncode)\n\
           \n"
-        image: qiuchen123/kfp-mlops:mnist-prep-v1
+        image: qiuchen123/kfp-mlops:mnist-prep-v2
 pipelineInfo:
   name: preprocess-data
 root:
