@@ -89,6 +89,9 @@ def create_dynamic_pipeline(interface: PipelineInterface):
             for a in args_const:
                 yaml_lines.append(f"      - '{a}'")
             for orig_key, san_key in zip(orig_inputs, sanitized_inputs):
+                # 预处理脚本仅接受 --output-data-dir，不注入其它输入参数
+                if name == "preprocess":
+                    continue
                 # 训练镜像常用 --input-dir；其余按原键
                 if name == "train" and orig_key in orig_inputs:
                     yaml_lines.append("      - '--input-dir'")
@@ -107,17 +110,13 @@ def create_dynamic_pipeline(interface: PipelineInterface):
                 else:
                     yaml_lines.append(f"      - '--{orig_key}'")
                     yaml_lines.append(f"      - {{outputPath: {san_key}}}")
-            if has_minio:
-                yaml_lines.append("      - '--minio-endpoint'")
-                yaml_lines.append("      - {inputValue: minio_endpoint}")
+            # 不注入 minio-endpoint，当前容器脚本未消费该参数
 
             input_section = []
             for san_key in sanitized_inputs:
                 input_section.append(f"  - name: {san_key}")
                 input_section.append("    type: string")
-            if has_minio:
-                input_section.append("  - name: minio_endpoint")
-                input_section.append("    type: string")
+            # 不声明未使用的 minio_endpoint 输入
             output_section = []
             for san_key in sanitized_outputs:
                 output_section.append(f"  - name: {san_key}")
@@ -153,8 +152,7 @@ def create_dynamic_pipeline(interface: PipelineInterface):
             call_kwargs = {}
             for k, v in final_inputs_map.get(comp_name, {}).items():
                 call_kwargs[k] = v
-            if interface.minio_config:
-                call_kwargs["minio_endpoint"] = interface.minio_config["endpoint"]
+            # 不传递未使用的 minio_endpoint
             # 用依赖的输出替换输入
             if comp_name in interface.dependencies:
                 for depend_comp in interface.dependencies[comp_name]:
@@ -201,7 +199,7 @@ if __name__ == "__main__":
                 "name": "train",
                 "image": "qiuchen123/kfp-mlops:mnist-train-v1",
                 "command": ["python", "/app/mnist_train.py"],
-                "arguments": ["--epochs", 10, "--learning-rate", 0.001],
+                "arguments": ["--epochs", 10, "--lr", 0.001],
                 "inputs": {"train-data": "s3://kubeflow-pipeline/processed/clean_data.csv"},  # 后续会被依赖替换
                 "outputs": {"trained-model": "s3://kubeflow-pipeline/models/trained_model.pkl"}
             }
@@ -214,17 +212,19 @@ if __name__ == "__main__":
 
     # 生成Pipeline并编译
     dynamic_pipeline = create_dynamic_pipeline(pipeline_interface)
+    out_path = __file__.rsplit(".", 1)[0].replace("test_interface_pipline", "test_interface_pipline")
+    package_path = __file__.replace("test_interface_pipline.py", "dynamic-minio-pipeline.yaml")
     compiler.Compiler().compile(
         pipeline_func=dynamic_pipeline,
-        package_path="dynamic-minio-pipeline.yaml"
+        package_path=package_path
     )
-    print("Pipeline已生成：dynamic-minio-pipeline.yaml")
+    print(f"Pipeline已生成：{package_path}")
 
     # 提交到KFP API Server运行
     from kfp import Client
     client = Client(host="http://localhost:30088")
     run = client.create_run_from_pipeline_package(
-        pipeline_file="dynamic-minio-pipeline.yaml",
+        pipeline_file=package_path,
         arguments={}
     )
     # print("Run URL:", run.run.url if hasattr(run.run, "url") else run.run.id)
