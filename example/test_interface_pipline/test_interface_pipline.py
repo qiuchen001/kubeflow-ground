@@ -241,7 +241,7 @@ if __name__ == "__main__":
             # 组件1：数据预处理
             {
                 "name": "preprocess",
-                "image": "qiuchen123/kfp-mlops:mnist-prep-v1",
+                "image": "qiuchen123/kfp-mlops:mnist-prep-v2",
                 "command": ["python", "/app/mnist_preprocess.py"],
                 "inputs": {"raw-data": "s3://kubeflow-pipeline/raw/train_data.csv"},
                 "outputs": {"clean-data": "s3://kubeflow-pipeline/processed/clean_data.csv"}
