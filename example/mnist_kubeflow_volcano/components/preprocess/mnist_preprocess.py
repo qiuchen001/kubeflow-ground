@@ -4,6 +4,8 @@ import os
 import json # 用于模拟保存元数据
 
 parser = argparse.ArgumentParser(description="MNIST Data Preprocessor")
+# 可选的原始数据输入目录（Artifact 输入）
+parser.add_argument("--input-dir", type=str, required=False, help="Directory path containing raw data.")
 # KFP 会提供这个目录路径
 parser.add_argument("--output-data-dir", type=str, required=True, help="Directory path to save the processed data.") 
 args = parser.parse_args()
@@ -11,15 +13,20 @@ args = parser.parse_args()
 print("Starting MNIST data preprocessing and saving to Artifact Store...")
 
 try:
-    # --- 模拟数据下载和处理 ---
-    # 实际中应该是下载并处理 MNIST 数据
-    
-    # 模拟创建处理后的数据 (包含 features 和 labels)
-    df = pd.DataFrame({
-        'pixel_sum': [2550, 2400, 2600],
-        'label': [1, 7, 3],
-        'is_normalized': [True, True, True]
-    })
+    # 若提供了输入目录，尝试从其中读取原始CSV
+    df = None
+    if args.input_dir and os.path.isdir(args.input_dir):
+        candidates = [f for f in os.listdir(args.input_dir) if f.lower().endswith('.csv')]
+        if candidates:
+            src = os.path.join(args.input_dir, candidates[0])
+            df = pd.read_csv(src)
+    # 如果没有提供输入或读取失败，则生成模拟数据
+    if df is None:
+        df = pd.DataFrame({
+            'pixel_sum': [2550, 2400, 2600],
+            'label': [1, 7, 3],
+            'is_normalized': [True, True, True]
+        })
     
     # 4. KFP 产出机制：将结果保存到指定的输出目录
     os.makedirs(args.output_data_dir, exist_ok=True)

@@ -8,23 +8,17 @@ REPO = "qiuchen123/kfp-mlops"
     base_image=f"{REPO}:mnist-prep-v1",
     output_component_file="mnist_preprocess_component.yaml",
 )
-def preprocess_data(processed_data: Output[Dataset]):
+def preprocess_data(raw_data: Input[Dataset] = None, processed_data: Output[Dataset] = None):
     import subprocess
     import sys
-    
-    # 调用容器内的脚本
-    # 注意：KFP 会自动挂载 output artifact 的路径
-    cmd = [
-        "python", "/app/mnist_preprocess.py",
-        "--output-data-dir", processed_data.path
-    ]
-    
+    cmd = ["python", "/app/mnist_preprocess.py"]
+    if raw_data is not None:
+        cmd.extend(["--input-dir", raw_data.path])
+    cmd.extend(["--output-data-dir", processed_data.path])
     print(f"Running command: {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
-    
     print("STDOUT:", result.stdout)
     print("STDERR:", result.stderr)
-    
     if result.returncode != 0:
         sys.exit(result.returncode)
 

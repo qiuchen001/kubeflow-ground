@@ -1,6 +1,10 @@
 import os
 from kfp import dsl
-from kfp import kubernetes
+try:
+    from kfp import kubernetes
+    _HAS_KFP_K8S = True
+except Exception:
+    _HAS_KFP_K8S = False
 
 from kfp.compiler import Compiler
 from kfp.client import Client
@@ -43,16 +47,17 @@ def mnist_pipeline(
     
     # --- 🌟 关键：Volcano 调度注入点 ---
     # 这将确保这个训练任务的 Pod 由 Volcano 调度器处理
-    kubernetes.add_pod_annotation(
-        task=train_task,
-        annotation_key='scheduling.k8s.io/group-name', 
-        annotation_value='mnist-gpu-group'
-    )
-    kubernetes.add_pod_annotation(
-        task=train_task,
-        annotation_key='scheduling.volcano.sh/schedulerName', 
-        annotation_value='volcano' 
-    )
+    if _HAS_KFP_K8S:
+        kubernetes.add_pod_annotation(
+            task=train_task,
+            annotation_key='scheduling.k8s.io/group-name', 
+            annotation_value='mnist-gpu-group'
+        )
+        kubernetes.add_pod_annotation(
+            task=train_task,
+            annotation_key='scheduling.volcano.sh/schedulerName', 
+            annotation_value='volcano' 
+        )
     # 请求 GPU 资源，Volcano 将基于此进行批量调度
     train_task.set_cpu_limit('4').set_memory_limit('16G').set_gpu_limit(1)
 
