@@ -160,16 +160,16 @@ if __name__ == "__main__":
             # 组件1：数据预处理
             {
                 "name": "preprocess",
-                "image": "my-registry/data-preprocess:v1",
-                "command": ["python", "/app/preprocess.py"],
+                "image": "qiuchen123/kfp-mlops:mnist-prep-v1",
+                "command": ["python", "/app/mnist_preprocess.py"],
                 "inputs": {"raw-data": "s3://kubeflow-pipeline/raw/train_data.csv"},
                 "outputs": {"clean-data": "s3://kubeflow-pipeline/processed/clean_data.csv"}
             },
             # 组件2：模型训练
             {
                 "name": "train",
-                "image": "my-registry/model-train:v1",
-                "command": ["python", "/app/train.py"],
+                "image": "qiuchen123/kfp-mlops:mnist-train-v1",
+                "command": ["python", "/app/mnist_train.py"],
                 "arguments": ["--epochs", 10, "--learning-rate", 0.001],
                 "inputs": {"train-data": "s3://kubeflow-pipeline/processed/clean_data.csv"},  # 后续会被依赖替换
                 "outputs": {"trained-model": "s3://kubeflow-pipeline/models/trained_model.pkl"}
