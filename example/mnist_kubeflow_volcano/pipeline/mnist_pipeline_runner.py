@@ -17,8 +17,8 @@ def get_component_op(yaml_file):
 
 # 加载组件 (确保组件 YAML 已经生成)
 try:
-    preprocess_op = load_component_from_file('./mnist_preprocess_component.yaml')
-    train_op = load_component_from_file('./mnist_train_component.yaml')
+    preprocess_op = get_component_op('mnist_preprocess_component.yaml')
+    train_op = get_component_op('mnist_train_component.yaml')
 except FileNotFoundError:
     print("错误: 找不到组件 YAML 文件。请先运行组件生成步骤。")
     exit(1)
@@ -34,10 +34,15 @@ def mnist_pipeline(
     epochs: int = 10, 
     lr: float = 0.001
 ):
-    # 1. 数据预处理任务 (使用默认 K8s 调度器)
-    prep_task = preprocess_op()
+    # 1. 导入原始数据为 Dataset Artifact（可替换为你的实际路径）
+    raw_data_importer = dsl.importer(
+        artifact_uri='s3://kubeflow-pipeline/raw/train_data.csv',
+        artifact_class=dsl.Dataset
+    )
+    # 2. 数据预处理任务
+    prep_task = preprocess_op(raw_data=raw_data_importer.outputs['artifact'])
     
-    # 2. 模型训练任务 (配置 Volcano 调度)
+    # 3. 模型训练任务 (配置 Volcano 调度)
     train_task = train_op(
         # 串行依赖：数据传递 (KFP 自动处理路径映射)
         training_data=prep_task.outputs['processed_data'], 
@@ -65,12 +70,11 @@ def mnist_pipeline(
 # --- 编译和运行逻辑 ---
 
 # 编译成可执行 JSON
-# Compiler().compile(
-#     pipeline_func=mnist_pipeline,
-#     package_path='mnist_pipeline.yaml'
-# )
-
-# print("Pipeline 编译成功：mnist_pipeline.yaml")
+Compiler().compile(
+    pipeline_func=mnist_pipeline,
+    package_path='mnist_pipeline.yaml'
+)
+print("Pipeline 编译成功：mnist_pipeline.yaml")
 
 # 提交到 KFP API Server 运行
 try:

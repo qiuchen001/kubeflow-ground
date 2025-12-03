@@ -1,0 +1,230 @@
+# PIPELINE DEFINITION
+# Name: mnist-volcano-training
+# Inputs:
+#    epochs: int [Default: 10.0]
+#    lr: float [Default: 0.001]
+components:
+  comp-importer:
+    executorLabel: exec-importer
+    inputDefinitions:
+      parameters:
+        uri:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-preprocess-data:
+    executorLabel: exec-preprocess-data
+    inputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+          isOptional: true
+    outputDefinitions:
+      artifacts:
+        processed_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      artifacts:
+        training_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        epochs:
+          parameterType: NUMBER_INTEGER
+        lr:
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      artifacts:
+        trained_model:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        accuracy:
+          parameterType: NUMBER_DOUBLE
+defaultPipelineRoot: minio://minio-service.kubeflow.svc:9000/mlpipeline/mnist-runs
+deploymentSpec:
+  executors:
+    exec-importer:
+      importer:
+        artifactUri:
+          constant: s3://kubeflow-pipeline/raw/train_data.csv
+        typeSchema:
+          schemaTitle: system.Dataset
+          schemaVersion: 0.0.1
+    exec-preprocess-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - preprocess_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.15.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef preprocess_data(raw_data: Input[Dataset] = None, processed_data:\
+          \ Output[Dataset] = None):\n    import subprocess\n    import sys\n    cmd\
+          \ = [\"python\", \"/app/mnist_preprocess.py\"]\n    if raw_data is not None:\n\
+          \        cmd.extend([\"--input-dir\", raw_data.path])\n    cmd.extend([\"\
+          --output-data-dir\", processed_data.path])\n    print(f\"Running command:\
+          \ {' '.join(cmd)}\")\n    result = subprocess.run(cmd, capture_output=True,\
+          \ text=True)\n    print(\"STDOUT:\", result.stdout)\n    print(\"STDERR:\"\
+          , result.stderr)\n    if result.returncode != 0:\n        sys.exit(result.returncode)\n\
+          \n"
+        image: qiuchen123/kfp-mlops:mnist-prep-v2
+    exec-train-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.15.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_model(\n    training_data: Input[Dataset],\n    epochs:\
+          \ int,\n    lr: float,\n    trained_model: Output[Artifact]\n) -> NamedTuple('Outputs',\
+          \ [('accuracy', float)]): # \u6A21\u62DF\u8FD4\u56DE Accuracy\n    import\
+          \ subprocess\n    import sys\n    import json\n    from collections import\
+          \ namedtuple\n\n    # \u8C03\u7528\u5BB9\u5668\u5185\u7684\u811A\u672C\n\
+          \    # \u6CE8\u610F\uFF1Atraining_data.path \u6307\u5411\u7684\u662F\u8F93\
+          \u5165 artifact \u7684\u8DEF\u5F84\n    # trained_model.path \u6307\u5411\
+          \u7684\u662F\u8F93\u51FA artifact \u7684\u8DEF\u5F84\n\n    cmd = [\n  \
+          \      \"python\", \"/app/mnist_train.py\",\n        \"--input-dir\", training_data.path,\n\
+          \        \"--output-model-dir\", trained_model.path,\n        \"--epochs\"\
+          , str(epochs),\n        \"--lr\", str(lr)\n    ]\n\n    print(f\"Running\
+          \ command: {' '.join(cmd)}\")\n    result = subprocess.run(cmd, capture_output=True,\
+          \ text=True)\n\n    print(\"STDOUT:\", result.stdout)\n    print(\"STDERR:\"\
+          , result.stderr)\n\n    if result.returncode != 0:\n        sys.exit(result.returncode)\n\
+          \n    # \u8BFB\u53D6\u811A\u672C\u8F93\u51FA\u7684 accuracy\n    # \u811A\
+          \u672C\u4E2D\u5199\u5230\u4E86 /tmp/accuracy_output\n    try:\n        with\
+          \ open('/tmp/accuracy_output', 'r') as f:\n            accuracy = float(f.read().strip())\n\
+          \    except Exception as e:\n        print(f\"Failed to read accuracy: {e}\"\
+          )\n        accuracy = 0.0\n\n    outputs = namedtuple('Outputs', ['accuracy'])\n\
+          \    return outputs(accuracy)\n\n"
+        image: qiuchen123/kfp-mlops:mnist-train-v1
+        resources:
+          accelerator:
+            count: '1'
+            resourceCount: '1'
+          cpuLimit: 4.0
+          memoryLimit: 16.0
+          resourceCpuLimit: '4'
+          resourceMemoryLimit: 16G
+pipelineInfo:
+  name: mnist-volcano-training
+root:
+  dag:
+    tasks:
+      importer:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-importer
+        inputs:
+          parameters:
+            uri:
+              runtimeValue:
+                constant: s3://kubeflow-pipeline/raw/train_data.csv
+        taskInfo:
+          name: importer
+      preprocess-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-preprocess-data
+        dependentTasks:
+        - importer
+        inputs:
+          artifacts:
+            raw_data:
+              taskOutputArtifact:
+                outputArtifactKey: artifact
+                producerTask: importer
+        taskInfo:
+          name: preprocess-data
+      train-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - preprocess-data
+        inputs:
+          artifacts:
+            training_data:
+              taskOutputArtifact:
+                outputArtifactKey: processed_data
+                producerTask: preprocess-data
+          parameters:
+            epochs:
+              componentInputParameter: epochs
+            lr:
+              componentInputParameter: lr
+        taskInfo:
+          name: train-model
+  inputDefinitions:
+    parameters:
+      epochs:
+        defaultValue: 10.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      lr:
+        defaultValue: 0.001
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.15.1
+---
+platforms:
+  kubernetes:
+    deploymentSpec:
+      executors:
+        exec-train-model:
+          podMetadata:
+            annotations:
+              scheduling.k8s.io/group-name: mnist-gpu-group
+              scheduling.volcano.sh/schedulerName: volcano
