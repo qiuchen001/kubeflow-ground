@@ -30,8 +30,8 @@ deploymentSpec:
         - '{{$.inputs.parameters[''minio_endpoint'']}}'
         command:
         - python
-        - /app/preprocess.py
-        image: my-registry/data-preprocess:v1
+        - /app/mnist_preprocess.py
+        image: qiuchen123/kfp-mlops:mnist-prep-v1
     exec-train:
       container:
         args:
@@ -45,8 +45,8 @@ deploymentSpec:
         - '{{$.inputs.parameters[''minio_endpoint'']}}'
         command:
         - python
-        - /app/train.py
-        image: my-registry/model-train:v1
+        - /app/mnist_train.py
+        image: qiuchen123/kfp-mlops:mnist-train-v1
 pipelineInfo:
   description: "\u52A8\u6001\u751F\u6210\u7684\u5DE5\u4F5C\u6D41\uFF1ADynamic Configuration\
     \ - Data Preprocessing + Model Training"
