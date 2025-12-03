@@ -60,10 +60,10 @@ def mnist_pipeline(
 # --- 编译和运行逻辑 ---
 
 # 编译成可执行 JSON
-Compiler().compile(
-    pipeline_func=mnist_pipeline,
-    package_path='mnist_pipeline.yaml'
-)
+# Compiler().compile(
+#     pipeline_func=mnist_pipeline,
+#     package_path='mnist_pipeline.yaml'
+# )
 
 print("Pipeline 编译成功：mnist_pipeline.yaml")
 
