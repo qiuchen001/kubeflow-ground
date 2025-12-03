@@ -4,8 +4,27 @@
 #    epochs: int [Default: 10.0]
 #    lr: float [Default: 0.001]
 components:
+  comp-importer:
+    executorLabel: exec-importer
+    inputDefinitions:
+      parameters:
+        uri:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
   comp-preprocess-data:
     executorLabel: exec-preprocess-data
+    inputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+          isOptional: true
     outputDefinitions:
       artifacts:
         processed_data:
@@ -37,6 +56,13 @@ components:
 defaultPipelineRoot: minio://minio-service.kubeflow.svc:9000/mlpipeline/mnist-runs
 deploymentSpec:
   executors:
+    exec-importer:
+      importer:
+        artifactUri:
+          constant: s3://kubeflow-pipeline/raw/train_data.csv
+        typeSchema:
+          schemaTitle: system.Dataset
+          schemaVersion: 0.0.1
     exec-preprocess-data:
       container:
         args:
@@ -63,16 +89,16 @@ deploymentSpec:
 
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
-          \ *\n\ndef preprocess_data(processed_data: Output[Dataset]):\n    import\
-          \ subprocess\n    import sys\n\n    # \u8C03\u7528\u5BB9\u5668\u5185\u7684\
-          \u811A\u672C\n    # \u6CE8\u610F\uFF1AKFP \u4F1A\u81EA\u52A8\u6302\u8F7D\
-          \ output artifact \u7684\u8DEF\u5F84\n    cmd = [\n        \"python\", \"\
-          /app/mnist_preprocess.py\",\n        \"--output-data-dir\", processed_data.path\n\
-          \    ]\n\n    print(f\"Running command: {' '.join(cmd)}\")\n    result =\
-          \ subprocess.run(cmd, capture_output=True, text=True)\n\n    print(\"STDOUT:\"\
-          , result.stdout)\n    print(\"STDERR:\", result.stderr)\n\n    if result.returncode\
-          \ != 0:\n        sys.exit(result.returncode)\n\n"
-        image: qiuchen123/kfp-mlops:mnist-prep-v1
+          \ *\n\ndef preprocess_data(raw_data: Input[Dataset] = None, processed_data:\
+          \ Output[Dataset] = None):\n    import subprocess\n    import sys\n    cmd\
+          \ = [\"python\", \"/app/mnist_preprocess.py\"]\n    if raw_data is not None:\n\
+          \        cmd.extend([\"--input-dir\", raw_data.path])\n    cmd.extend([\"\
+          --output-data-dir\", processed_data.path])\n    print(f\"Running command:\
+          \ {' '.join(cmd)}\")\n    result = subprocess.run(cmd, capture_output=True,\
+          \ text=True)\n    print(\"STDOUT:\", result.stdout)\n    print(\"STDERR:\"\
+          , result.stderr)\n    if result.returncode != 0:\n        sys.exit(result.returncode)\n\
+          \n"
+        image: qiuchen123/kfp-mlops:mnist-prep-v2
     exec-train-model:
       container:
         args:
@@ -133,11 +159,31 @@ pipelineInfo:
 root:
   dag:
     tasks:
+      importer:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-importer
+        inputs:
+          parameters:
+            uri:
+              runtimeValue:
+                constant: s3://kubeflow-pipeline/raw/train_data.csv
+        taskInfo:
+          name: importer
       preprocess-data:
         cachingOptions:
           enableCache: true
         componentRef:
           name: comp-preprocess-data
+        dependentTasks:
+        - importer
+        inputs:
+          artifacts:
+            raw_data:
+              taskOutputArtifact:
+                outputArtifactKey: artifact
+                producerTask: importer
         taskInfo:
           name: preprocess-data
       train-model:
