@@ -103,6 +103,14 @@ deploymentSpec:
           value: us-east-1
         - name: AWS_ENDPOINT_URL
           value: http://minio-service.kubeflow.svc:9000
+        - name: S3_FORCE_PATH_STYLE
+          value: 'true'
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: 'true'
+        - name: AWS_USE_PATH_STYLE_REQUESTS
+          value: 'true'
+        - name: AWS_S3_USE_PATH_STYLE
+          value: 'true'
         image: qiuchen123/kfp-mlops:mnist-prep-v2
     exec-train-model:
       container:
@@ -155,6 +163,14 @@ deploymentSpec:
           value: us-east-1
         - name: AWS_ENDPOINT_URL
           value: http://minio-service.kubeflow.svc:9000
+        - name: S3_FORCE_PATH_STYLE
+          value: 'true'
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: 'true'
+        - name: AWS_USE_PATH_STYLE_REQUESTS
+          value: 'true'
+        - name: AWS_S3_USE_PATH_STYLE
+          value: 'true'
         image: qiuchen123/kfp-mlops:mnist-train-v1
         resources:
           accelerator:

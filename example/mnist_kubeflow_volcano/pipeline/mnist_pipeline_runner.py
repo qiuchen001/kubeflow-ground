@@ -69,6 +69,11 @@ def mnist_pipeline(
         prep_task.set_env_variable('AWS_REGION', 'us-east-1')
         # 注入 Endpoint (指向集群内 MinIO)
         prep_task.set_env_variable('AWS_ENDPOINT_URL', 'http://minio-service.kubeflow.svc:9000')
+        # 强制 Path Style (解决 DNS 解析问题)
+        prep_task.set_env_variable('S3_FORCE_PATH_STYLE', 'true')
+        prep_task.set_env_variable('AWS_S3_FORCE_PATH_STYLE', 'true')
+        prep_task.set_env_variable('AWS_USE_PATH_STYLE_REQUESTS', 'true')
+        prep_task.set_env_variable('AWS_S3_USE_PATH_STYLE', 'true')
 
         kubernetes.use_secret_as_env(
             task=train_task,
@@ -82,6 +87,11 @@ def mnist_pipeline(
         train_task.set_env_variable('AWS_REGION', 'us-east-1')
         # 注入 Endpoint (指向集群内 MinIO)
         train_task.set_env_variable('AWS_ENDPOINT_URL', 'http://minio-service.kubeflow.svc:9000')
+        # 强制 Path Style (解决 DNS 解析问题)
+        train_task.set_env_variable('S3_FORCE_PATH_STYLE', 'true')
+        train_task.set_env_variable('AWS_S3_FORCE_PATH_STYLE', 'true')
+        train_task.set_env_variable('AWS_USE_PATH_STYLE_REQUESTS', 'true')
+        train_task.set_env_variable('AWS_S3_USE_PATH_STYLE', 'true')
 
         kubernetes.add_pod_annotation(
             task=train_task,
