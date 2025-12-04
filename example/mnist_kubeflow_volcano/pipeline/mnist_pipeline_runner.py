@@ -65,6 +65,9 @@ def mnist_pipeline(
                 'secretkey': 'AWS_SECRET_ACCESS_KEY'
             }
         )
+        # 注入 Region (S3 Client 需要)
+        prep_task.set_env_variable('AWS_REGION', 'us-east-1')
+
         kubernetes.use_secret_as_env(
             task=train_task,
             secret_name='mlpipeline-minio-artifact',
@@ -73,6 +76,8 @@ def mnist_pipeline(
                 'secretkey': 'AWS_SECRET_ACCESS_KEY'
             }
         )
+        # 注入 Region (S3 Client 需要)
+        train_task.set_env_variable('AWS_REGION', 'us-east-1')
 
         kubernetes.add_pod_annotation(
             task=train_task,

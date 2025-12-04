@@ -98,6 +98,9 @@ deploymentSpec:
           \ text=True)\n    print(\"STDOUT:\", result.stdout)\n    print(\"STDERR:\"\
           , result.stderr)\n    if result.returncode != 0:\n        sys.exit(result.returncode)\n\
           \n"
+        env:
+        - name: AWS_REGION
+          value: us-east-1
         image: qiuchen123/kfp-mlops:mnist-prep-v2
     exec-train-model:
       container:
@@ -145,6 +148,9 @@ deploymentSpec:
           \    except Exception as e:\n        print(f\"Failed to read accuracy: {e}\"\
           )\n        accuracy = 0.0\n\n    outputs = namedtuple('Outputs', ['accuracy'])\n\
           \    return outputs(accuracy)\n\n"
+        env:
+        - name: AWS_REGION
+          value: us-east-1
         image: qiuchen123/kfp-mlops:mnist-train-v1
         resources:
           accelerator:
