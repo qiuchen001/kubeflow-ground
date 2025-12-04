@@ -102,7 +102,7 @@ deploymentSpec:
         - name: AWS_REGION
           value: us-east-1
         - name: AWS_ENDPOINT_URL
-          value: minio-service.kubeflow:9000
+          value: http://minio-service:9000
         - name: S3_FORCE_PATH_STYLE
           value: 'true'
         - name: AWS_S3_FORCE_PATH_STYLE
@@ -162,7 +162,7 @@ deploymentSpec:
         - name: AWS_REGION
           value: us-east-1
         - name: AWS_ENDPOINT_URL
-          value: minio-service.kubeflow:9000
+          value: http://minio-service:9000
         - name: S3_FORCE_PATH_STYLE
           value: 'true'
         - name: AWS_S3_FORCE_PATH_STYLE
