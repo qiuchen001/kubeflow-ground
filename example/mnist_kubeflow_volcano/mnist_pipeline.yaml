@@ -101,6 +101,8 @@ deploymentSpec:
         env:
         - name: AWS_REGION
           value: us-east-1
+        - name: AWS_ENDPOINT_URL
+          value: http://minio-service.kubeflow.svc:9000
         image: qiuchen123/kfp-mlops:mnist-prep-v2
     exec-train-model:
       container:
@@ -151,6 +153,8 @@ deploymentSpec:
         env:
         - name: AWS_REGION
           value: us-east-1
+        - name: AWS_ENDPOINT_URL
+          value: http://minio-service.kubeflow.svc:9000
         image: qiuchen123/kfp-mlops:mnist-train-v1
         resources:
           accelerator:

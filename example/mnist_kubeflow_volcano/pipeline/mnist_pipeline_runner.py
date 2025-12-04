@@ -67,6 +67,8 @@ def mnist_pipeline(
         )
         # 注入 Region (S3 Client 需要)
         prep_task.set_env_variable('AWS_REGION', 'us-east-1')
+        # 注入 Endpoint (指向集群内 MinIO)
+        prep_task.set_env_variable('AWS_ENDPOINT_URL', 'http://minio-service.kubeflow.svc:9000')
 
         kubernetes.use_secret_as_env(
             task=train_task,
@@ -78,6 +80,8 @@ def mnist_pipeline(
         )
         # 注入 Region (S3 Client 需要)
         train_task.set_env_variable('AWS_REGION', 'us-east-1')
+        # 注入 Endpoint (指向集群内 MinIO)
+        train_task.set_env_variable('AWS_ENDPOINT_URL', 'http://minio-service.kubeflow.svc:9000')
 
         kubernetes.add_pod_annotation(
             task=train_task,
