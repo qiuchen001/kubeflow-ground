@@ -53,7 +53,7 @@ components:
       parameters:
         accuracy:
           parameterType: NUMBER_DOUBLE
-defaultPipelineRoot: minio://minio-service.kubeflow.svc:9000/mlpipeline/mnist-runs
+defaultPipelineRoot: s3://kubeflow-pipeline/mnist-runs
 deploymentSpec:
   executors:
     exec-importer:
@@ -223,8 +223,57 @@ platforms:
   kubernetes:
     deploymentSpec:
       executors:
+        exec-preprocess-data:
+          configMapAsEnv:
+          - configMapName: minio-s3-config
+            configMapNameParameter:
+              runtimeValue:
+                constant: minio-s3-config
+            keyToEnv:
+            - configMapKey: AWS_REGION
+              envVar: AWS_REGION
+            - configMapKey: AWS_ENDPOINT_URL_S3
+              envVar: AWS_ENDPOINT_URL_S3
+            - configMapKey: AWS_S3_FORCE_PATH_STYLE
+              envVar: AWS_S3_FORCE_PATH_STYLE
+            optional: false
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: accesskey
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: secretkey
+            optional: false
+            secretName: mlpipeline-minio-artifact
+            secretNameParameter:
+              runtimeValue:
+                constant: mlpipeline-minio-artifact
         exec-train-model:
+          configMapAsEnv:
+          - configMapName: minio-s3-config
+            configMapNameParameter:
+              runtimeValue:
+                constant: minio-s3-config
+            keyToEnv:
+            - configMapKey: AWS_REGION
+              envVar: AWS_REGION
+            - configMapKey: AWS_ENDPOINT_URL_S3
+              envVar: AWS_ENDPOINT_URL_S3
+            - configMapKey: AWS_S3_FORCE_PATH_STYLE
+              envVar: AWS_S3_FORCE_PATH_STYLE
+            optional: false
           podMetadata:
             annotations:
               scheduling.k8s.io/group-name: mnist-gpu-group
               scheduling.volcano.sh/schedulerName: volcano
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: accesskey
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: secretkey
+            optional: false
+            secretName: mlpipeline-minio-artifact
+            secretNameParameter:
+              runtimeValue:
+                constant: mlpipeline-minio-artifact

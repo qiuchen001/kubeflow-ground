@@ -36,7 +36,10 @@ def mnist_pipeline(
 ):
     # 1. 导入原始数据为 Dataset Artifact（可替换为你的实际路径）
     raw_data_importer = dsl.importer(
-        artifact_uri='s3://kubeflow-pipeline/raw/train_data.csv',
+        # artifact_uri='s3://kubeflow-pipeline/raw/train_data.csv',
+        # artifact_uri='minio://minio-service.kubeflow.svc:9000/mlpipeline/raw/train_data.csv',
+        artifact_uri='s3://minio-service.kubeflow.svc:9000/mlpipeline/raw/train_data.csv',
+        # artifact_uri='s3://mlpipeline/raw/train_data.csv',
         artifact_class=dsl.Dataset
     )
     # 2. 数据预处理任务

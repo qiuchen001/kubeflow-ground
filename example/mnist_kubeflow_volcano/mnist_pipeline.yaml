@@ -59,7 +59,7 @@ deploymentSpec:
     exec-importer:
       importer:
         artifactUri:
-          constant: s3://kubeflow-pipeline/raw/train_data.csv
+          constant: s3://minio-service.kubeflow.svc:9000/mlpipeline/raw/train_data.csv
         typeSchema:
           schemaTitle: system.Dataset
           schemaVersion: 0.0.1
@@ -168,7 +168,7 @@ root:
           parameters:
             uri:
               runtimeValue:
-                constant: s3://kubeflow-pipeline/raw/train_data.csv
+                constant: s3://minio-service.kubeflow.svc:9000/mlpipeline/raw/train_data.csv
         taskInfo:
           name: importer
       preprocess-data:
