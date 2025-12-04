@@ -52,6 +52,8 @@ def mnist_pipeline(
         epochs=epochs,
         lr=lr
     )
+    # 禁用缓存，强制每次运行 (用于验证 Volcano 调度)
+    train_task.set_caching_options(False)
     
     # --- 🌟 关键：Volcano 调度注入点 ---
     # 这将确保这个训练任务的 Pod 由 Volcano 调度器处理

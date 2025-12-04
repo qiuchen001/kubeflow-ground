@@ -213,8 +213,7 @@ root:
         taskInfo:
           name: preprocess-data
       train-model:
-        cachingOptions:
-          enableCache: true
+        cachingOptions: {}
         componentRef:
           name: comp-train-model
         dependentTasks:
