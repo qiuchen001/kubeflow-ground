@@ -1,5 +1,5 @@
 import kfp
-from kfp import dsl, components, compiler
+from kfp import dsl, components, compiler, kubernetes
 from typing import List, Dict, Optional
 
 # --------------------------
@@ -58,6 +58,29 @@ def create_dynamic_pipeline(interface: PipelineInterface):
     )
     def dynamic_pipeline():
         components_by_name = {cfg["name"]: cfg for cfg in interface.components}
+
+        def apply_minio_config(task):
+            # 注入 Region
+            task.set_env_variable('AWS_REGION', 'us-east-1')
+            # 注入 Endpoint (使用 IP 绕过 DNS 问题)
+            task.set_env_variable('AWS_ENDPOINT_URL', 'http://10.96.1.54:9000')
+            # 强制 Path Style
+            task.set_env_variable('S3_FORCE_PATH_STYLE', 'true')
+            task.set_env_variable('AWS_S3_FORCE_PATH_STYLE', 'true')
+            task.set_env_variable('AWS_USE_PATH_STYLE_REQUESTS', 'true')
+            task.set_env_variable('AWS_S3_USE_PATH_STYLE', 'true')
+            
+            # 注入凭证
+            if interface.minio_config:
+                 secret_name = interface.minio_config.get('secret_name', 'mlpipeline-minio-artifact')
+                 kubernetes.use_secret_as_env(
+                    task=task,
+                    secret_name=secret_name,
+                    secret_key_to_env={
+                        'accesskey': 'AWS_ACCESS_KEY_ID',
+                        'secretkey': 'AWS_SECRET_ACCESS_KEY'
+                    }
+                )
 
         def sanitize_name(name: str) -> str:
             s = ''.join(ch if ch.isalnum() or ch == '_' else '_' for ch in name)
@@ -189,6 +212,7 @@ def create_dynamic_pipeline(interface: PipelineInterface):
             # 针对 v2 预处理组件：无输入参数，直接调用
             if comp_name == "preprocess":
                 task = comp()
+                apply_minio_config(task)
                 tasks[comp_name] = task
                 continue
 
@@ -201,6 +225,7 @@ def create_dynamic_pipeline(interface: PipelineInterface):
                 for k, v in args_kwargs.items():
                     call_kwargs[k] = v
                 task = comp(**call_kwargs)
+                apply_minio_config(task)
                 tasks[comp_name] = task
                 continue
 
@@ -215,6 +240,7 @@ def create_dynamic_pipeline(interface: PipelineInterface):
                                 up_san_out = orig_to_san_outputs[depend_comp][orig_input_key]
                                 call_kwargs[san_input_key] = tasks[depend_comp].outputs[up_san_out]
             task = comp(**call_kwargs)
+            apply_minio_config(task)
             tasks[comp_name] = task
         for target_comp, depend_comps in interface.dependencies.items():
             target_task = tasks[target_comp]
@@ -229,22 +255,22 @@ def create_dynamic_pipeline(interface: PipelineInterface):
 if __name__ == "__main__":
     # 配置MinIO
     minio_config = {
-        "endpoint": "minio-service.kubeflow:9000",
-        "secret_name": "minio-credentials"  # 已创建的K8s Secret
+        "endpoint": "http://10.96.1.54:9000",
+        "secret_name": "mlpipeline-minio-artifact"  # 已创建的K8s Secret
     }
 
     # 配置工作流、组件、依赖关系
     pipeline_interface = PipelineInterface(
         pipeline_name="Dynamic Configuration - Data Preprocessing + Model Training",
-        pipeline_root="s3://kubeflow-pipeline/pipeline-root/",
+        pipeline_root="minio://minio-service.kubeflow.svc:9000/mlpipeline/test-pipeline-root",
         components=[
             # 组件1：数据预处理
             {
                 "name": "preprocess",
                 "image": "qiuchen123/kfp-mlops:mnist-prep-v2",
                 "command": ["python", "/app/mnist_preprocess.py"],
-                "inputs": {"raw-data": "s3://kubeflow-pipeline/raw/train_data.csv"},
-                "outputs": {"clean-data": "s3://kubeflow-pipeline/processed/clean_data.csv"}
+                "inputs": {"raw-data": "s3://mlpipeline/raw/train_data.csv"},
+                "outputs": {"clean-data": "s3://mlpipeline/processed/clean_data.csv"}
             },
             # 组件2：模型训练
             {
@@ -252,8 +278,8 @@ if __name__ == "__main__":
                 "image": "qiuchen123/kfp-mlops:mnist-train-v1",
                 "command": ["python", "/app/mnist_train.py"],
                 "arguments": ["--epochs", 10, "--lr", 0.001],
-                "inputs": {"train-data": "s3://kubeflow-pipeline/processed/clean_data.csv"},  # 后续会被依赖替换
-                "outputs": {"trained-model": "s3://kubeflow-pipeline/models/trained_model.pkl"}
+                "inputs": {"train-data": "s3://mlpipeline/processed/clean_data.csv"},  # 后续会被依赖替换
+                "outputs": {"trained-model": "s3://mlpipeline/models/trained_model.pkl"}
             }
         ],
         dependencies={

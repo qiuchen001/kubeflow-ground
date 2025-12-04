@@ -39,7 +39,7 @@ components:
       parameters:
         accuracy:
           parameterType: NUMBER_DOUBLE
-defaultPipelineRoot: s3://kubeflow-pipeline/pipeline-root/
+defaultPipelineRoot: minio://minio-service.kubeflow.svc:9000/mlpipeline/test-pipeline-root
 deploymentSpec:
   executors:
     exec-preprocess-data:
@@ -77,6 +77,19 @@ deploymentSpec:
           \ text=True)\n    print(\"STDOUT:\", result.stdout)\n    print(\"STDERR:\"\
           , result.stderr)\n    if result.returncode != 0:\n        sys.exit(result.returncode)\n\
           \n"
+        env:
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_ENDPOINT_URL
+          value: http://10.96.1.54:9000
+        - name: S3_FORCE_PATH_STYLE
+          value: 'true'
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: 'true'
+        - name: AWS_USE_PATH_STYLE_REQUESTS
+          value: 'true'
+        - name: AWS_S3_USE_PATH_STYLE
+          value: 'true'
         image: qiuchen123/kfp-mlops:mnist-prep-v2
     exec-train-model:
       container:
@@ -124,6 +137,19 @@ deploymentSpec:
           \    except Exception as e:\n        print(f\"Failed to read accuracy: {e}\"\
           )\n        accuracy = 0.0\n\n    outputs = namedtuple('Outputs', ['accuracy'])\n\
           \    return outputs(accuracy)\n\n"
+        env:
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_ENDPOINT_URL
+          value: http://10.96.1.54:9000
+        - name: S3_FORCE_PATH_STYLE
+          value: 'true'
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: 'true'
+        - name: AWS_USE_PATH_STYLE_REQUESTS
+          value: 'true'
+        - name: AWS_S3_USE_PATH_STYLE
+          value: 'true'
         image: qiuchen123/kfp-mlops:mnist-train-v1
 pipelineInfo:
   description: "\u52A8\u6001\u751F\u6210\u7684\u5DE5\u4F5C\u6D41\uFF1ADynamic Configuration\
@@ -164,3 +190,32 @@ root:
           name: train-model
 schemaVersion: 2.1.0
 sdkVersion: kfp-2.15.1
+---
+platforms:
+  kubernetes:
+    deploymentSpec:
+      executors:
+        exec-preprocess-data:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: accesskey
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: secretkey
+            optional: false
+            secretName: mlpipeline-minio-artifact
+            secretNameParameter:
+              runtimeValue:
+                constant: mlpipeline-minio-artifact
+        exec-train-model:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: accesskey
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: secretkey
+            optional: false
+            secretName: mlpipeline-minio-artifact
+            secretNameParameter:
+              runtimeValue:
+                constant: mlpipeline-minio-artifact
