@@ -81,6 +81,9 @@ def create_dynamic_pipeline(interface: PipelineInterface):
                         'secretkey': 'AWS_SECRET_ACCESS_KEY'
                     }
                 )
+            
+            # 禁用缓存
+            task.set_caching_options(False)
 
         def sanitize_name(name: str) -> str:
             s = ''.join(ch if ch.isalnum() or ch == '_' else '_' for ch in name)
