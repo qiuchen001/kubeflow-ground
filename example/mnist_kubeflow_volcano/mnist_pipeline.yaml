@@ -223,8 +223,31 @@ platforms:
   kubernetes:
     deploymentSpec:
       executors:
+        exec-preprocess-data:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: accesskey
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: secretkey
+            optional: false
+            secretName: mlpipeline-minio-artifact
+            secretNameParameter:
+              runtimeValue:
+                constant: mlpipeline-minio-artifact
         exec-train-model:
           podMetadata:
             annotations:
               scheduling.k8s.io/group-name: mnist-gpu-group
               scheduling.volcano.sh/schedulerName: volcano
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: accesskey
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: secretkey
+            optional: false
+            secretName: mlpipeline-minio-artifact
+            secretNameParameter:
+              runtimeValue:
+                constant: mlpipeline-minio-artifact

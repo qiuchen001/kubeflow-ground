@@ -56,6 +56,24 @@ def mnist_pipeline(
     # --- 🌟 关键：Volcano 调度注入点 ---
     # 这将确保这个训练任务的 Pod 由 Volcano 调度器处理
     if _HAS_KFP_K8S:
+        # 注入 MinIO 凭证
+        kubernetes.use_secret_as_env(
+            task=prep_task,
+            secret_name='mlpipeline-minio-artifact',
+            secret_key_to_env={
+                'accesskey': 'AWS_ACCESS_KEY_ID',
+                'secretkey': 'AWS_SECRET_ACCESS_KEY'
+            }
+        )
+        kubernetes.use_secret_as_env(
+            task=train_task,
+            secret_name='mlpipeline-minio-artifact',
+            secret_key_to_env={
+                'accesskey': 'AWS_ACCESS_KEY_ID',
+                'secretkey': 'AWS_SECRET_ACCESS_KEY'
+            }
+        )
+
         kubernetes.add_pod_annotation(
             task=train_task,
             annotation_key='scheduling.k8s.io/group-name', 
