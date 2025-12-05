@@ -217,46 +217,11 @@ def create_dynamic_pipeline(interface: PipelineInterface):
             if comp_name == "preprocess":
                 raw_data_uri = final_inputs_map.get("preprocess", {}).get("raw_data")
                 if raw_data_uri:
-                    downloader_yaml = "\n".join([
-                        "name: download-dataset",
-                        "inputs:",
-                        "  - name: source_uri",
-                        "    type: string",
-                        "outputs:",
-                        "  - name: raw_data",
-                        "    type: Dataset",
-                        "implementation:",
-                        "  container:",
-                        "    image: python:3.11-slim",
-                        "    command:",
-                        "      - python",
-                        "      - -c",
-                        "    args:",
-                        "      - |",
-                        "        import os,sys,urllib.parse,subprocess",
-                        "        uri=sys.argv[1]",
-                        "        out_dir=sys.argv[2]",
-                        "        subprocess.run([sys.executable,'-m','pip','install','-q','boto3'], check=True)",
-                        "        import boto3",
-                        "        from botocore.config import Config",
-                        "        os.makedirs(out_dir, exist_ok=True)",
-                        "        p=urllib.parse.urlparse(uri)",
-                        "        if p.scheme!='s3':",
-                        "            print('unsupported scheme', file=sys.stderr); sys.exit(1)",
-                        "        bucket=p.netloc",
-                        "        key=p.path.lstrip('/')",
-                        "        cfg=Config(s3={'addressing_style':'path'})",
-                        "        s3=boto3.client('s3', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'), region_name=os.environ.get('AWS_REGION'), config=cfg)",
-                        "        local=os.path.join(out_dir, os.path.basename(key) or 'data.csv')",
-                        "        s3.download_file(bucket, key, local)",
-                        "        print('downloaded', local)",
-                        "      - {inputValue: source_uri}",
-                        "      - {outputPath: raw_data}",
-                    ])
-                    downloader_comp = components.load_component_from_text(downloader_yaml)
-                    dl_task = downloader_comp(source_uri=raw_data_uri)
-                    apply_minio_config(dl_task)
-                    task = comp(raw_data=dl_task.outputs["raw_data"])
+                    raw_import = dsl.importer(
+                        artifact_uri=raw_data_uri,
+                        artifact_class=dsl.Dataset
+                    )
+                    task = comp(raw_data=raw_import.outputs['artifact'])
                 else:
                     task = comp()
                 apply_minio_config(task)
