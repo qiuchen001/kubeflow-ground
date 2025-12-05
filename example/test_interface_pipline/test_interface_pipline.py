@@ -64,6 +64,7 @@ def create_dynamic_pipeline(interface: PipelineInterface):
             task.set_env_variable('AWS_REGION', 'us-east-1')
             # 注入 Endpoint (使用 IP 绕过 DNS 问题)
             task.set_env_variable('AWS_ENDPOINT_URL', 'http://10.96.1.54:9000')
+            task.set_env_variable('AWS_ENDPOINT_URL_S3', 'http://10.96.1.54:9000')
             # 强制 Path Style
             task.set_env_variable('S3_FORCE_PATH_STYLE', 'true')
             task.set_env_variable('AWS_S3_FORCE_PATH_STYLE', 'true')
@@ -212,9 +213,52 @@ def create_dynamic_pipeline(interface: PipelineInterface):
                 return m
             args_kwargs = parse_args_to_kwargs(cfg.get("arguments", []))
 
-            # 针对 v2 预处理组件：无输入参数，直接调用
+            # 针对 v2 预处理组件：支持可选外部原始数据 Dataset
             if comp_name == "preprocess":
-                task = comp()
+                raw_data_uri = final_inputs_map.get("preprocess", {}).get("raw_data")
+                if raw_data_uri:
+                    downloader_yaml = "\n".join([
+                        "name: download-dataset",
+                        "inputs:",
+                        "  - name: source_uri",
+                        "    type: string",
+                        "outputs:",
+                        "  - name: raw_data",
+                        "    type: Dataset",
+                        "implementation:",
+                        "  container:",
+                        "    image: python:3.11-slim",
+                        "    command:",
+                        "      - python",
+                        "      - -c",
+                        "    args:",
+                        "      - |",
+                        "        import os,sys,urllib.parse,subprocess",
+                        "        uri=sys.argv[1]",
+                        "        out_dir=sys.argv[2]",
+                        "        subprocess.run([sys.executable,'-m','pip','install','-q','boto3'], check=True)",
+                        "        import boto3",
+                        "        from botocore.config import Config",
+                        "        os.makedirs(out_dir, exist_ok=True)",
+                        "        p=urllib.parse.urlparse(uri)",
+                        "        if p.scheme!='s3':",
+                        "            print('unsupported scheme', file=sys.stderr); sys.exit(1)",
+                        "        bucket=p.netloc",
+                        "        key=p.path.lstrip('/')",
+                        "        cfg=Config(s3={'addressing_style':'path'})",
+                        "        s3=boto3.client('s3', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'), region_name=os.environ.get('AWS_REGION'), config=cfg)",
+                        "        local=os.path.join(out_dir, os.path.basename(key) or 'data.csv')",
+                        "        s3.download_file(bucket, key, local)",
+                        "        print('downloaded', local)",
+                        "      - {inputValue: source_uri}",
+                        "      - {outputPath: raw_data}",
+                    ])
+                    downloader_comp = components.load_component_from_text(downloader_yaml)
+                    dl_task = downloader_comp(source_uri=raw_data_uri)
+                    apply_minio_config(dl_task)
+                    task = comp(raw_data=dl_task.outputs["raw_data"])
+                else:
+                    task = comp()
                 apply_minio_config(task)
                 tasks[comp_name] = task
                 continue
@@ -265,7 +309,7 @@ if __name__ == "__main__":
     # 配置工作流、组件、依赖关系
     pipeline_interface = PipelineInterface(
         pipeline_name="Dynamic Configuration - Data Preprocessing + Model Training",
-        pipeline_root="minio://minio-service.kubeflow.svc:9000/mlpipeline/test-pipeline-root",
+        pipeline_root="s3://mlpipeline/test-pipeline-root",
         components=[
             # 组件1：数据预处理
             {

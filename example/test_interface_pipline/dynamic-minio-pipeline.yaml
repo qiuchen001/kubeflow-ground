@@ -2,6 +2,18 @@
 # Name: dynamic-configuration-data-preprocessing-model-training
 # Description: 动态生成的工作流：Dynamic Configuration - Data Preprocessing + Model Training
 components:
+  comp-download-dataset:
+    executorLabel: exec-download-dataset
+    inputDefinitions:
+      parameters:
+        source_uri:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        raw_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
   comp-preprocess-data:
     executorLabel: exec-preprocess-data
     inputDefinitions:
@@ -39,9 +51,42 @@ components:
       parameters:
         accuracy:
           parameterType: NUMBER_DOUBLE
-defaultPipelineRoot: minio://minio-service.kubeflow.svc:9000/mlpipeline/test-pipeline-root
+defaultPipelineRoot: s3://mlpipeline/test-pipeline-root
 deploymentSpec:
   executors:
+    exec-download-dataset:
+      container:
+        args:
+        - "import os,sys,urllib.parse,subprocess\nuri=sys.argv[1]\nout_dir=sys.argv[2]\n\
+          subprocess.run([sys.executable,'-m','pip','install','-q','boto3'], check=True)\n\
+          import boto3\nfrom botocore.config import Config\nos.makedirs(out_dir, exist_ok=True)\n\
+          p=urllib.parse.urlparse(uri)\nif p.scheme!='s3':\n    print('unsupported\
+          \ scheme', file=sys.stderr); sys.exit(1)\nbucket=p.netloc\nkey=p.path.lstrip('/')\n\
+          cfg=Config(s3={'addressing_style':'path'})\ns3=boto3.client('s3', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'),\
+          \ region_name=os.environ.get('AWS_REGION'), config=cfg)\nlocal=os.path.join(out_dir,\
+          \ os.path.basename(key) or 'data.csv')\ns3.download_file(bucket, key, local)\n\
+          print('downloaded', local)\n"
+        - '{{$.inputs.parameters[''source_uri'']}}'
+        - '{{$.outputs.artifacts[''raw_data''].path}}'
+        command:
+        - python
+        - -c
+        env:
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_ENDPOINT_URL
+          value: http://10.96.1.54:9000
+        - name: AWS_ENDPOINT_URL_S3
+          value: http://10.96.1.54:9000
+        - name: S3_FORCE_PATH_STYLE
+          value: 'true'
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: 'true'
+        - name: AWS_USE_PATH_STYLE_REQUESTS
+          value: 'true'
+        - name: AWS_S3_USE_PATH_STYLE
+          value: 'true'
+        image: python:3.11-slim
     exec-preprocess-data:
       container:
         args:
@@ -81,6 +126,8 @@ deploymentSpec:
         - name: AWS_REGION
           value: us-east-1
         - name: AWS_ENDPOINT_URL
+          value: http://10.96.1.54:9000
+        - name: AWS_ENDPOINT_URL_S3
           value: http://10.96.1.54:9000
         - name: S3_FORCE_PATH_STYLE
           value: 'true'
@@ -142,6 +189,8 @@ deploymentSpec:
           value: us-east-1
         - name: AWS_ENDPOINT_URL
           value: http://10.96.1.54:9000
+        - name: AWS_ENDPOINT_URL_S3
+          value: http://10.96.1.54:9000
         - name: S3_FORCE_PATH_STYLE
           value: 'true'
         - name: AWS_S3_FORCE_PATH_STYLE
@@ -159,10 +208,29 @@ pipelineInfo:
 root:
   dag:
     tasks:
+      download-dataset:
+        cachingOptions: {}
+        componentRef:
+          name: comp-download-dataset
+        inputs:
+          parameters:
+            source_uri:
+              runtimeValue:
+                constant: s3://mlpipeline/raw/train_data.csv
+        taskInfo:
+          name: download-dataset
       preprocess-data:
         cachingOptions: {}
         componentRef:
           name: comp-preprocess-data
+        dependentTasks:
+        - download-dataset
+        inputs:
+          artifacts:
+            raw_data:
+              taskOutputArtifact:
+                outputArtifactKey: raw_data
+                producerTask: download-dataset
         taskInfo:
           name: preprocess-data
       train-model:
@@ -193,6 +261,18 @@ platforms:
   kubernetes:
     deploymentSpec:
       executors:
+        exec-download-dataset:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: accesskey
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: secretkey
+            optional: false
+            secretName: mlpipeline-minio-artifact
+            secretNameParameter:
+              runtimeValue:
+                constant: mlpipeline-minio-artifact
         exec-preprocess-data:
           secretAsEnv:
           - keyToEnv:
