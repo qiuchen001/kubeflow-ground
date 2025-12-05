@@ -21,6 +21,12 @@ def compile_pipeline(pipeline: Pipeline) -> str:
         component_map[node.component_id] = comp
 
     # 2. Define the pipeline function dynamically
+    def _sanitize(name: str) -> str:
+        s = ''.join(ch if (ch.isalnum() or ch == '_') else '_' for ch in name)
+        if s and s[0].isdigit():
+            s = '_' + s
+        return s
+
     @dsl.pipeline(
         name=pipeline.name,
         description=pipeline.description
@@ -60,6 +66,15 @@ def compile_pipeline(pipeline: Pipeline) -> str:
             node = next(n for n in pipeline.nodes if n.id == node_id)
             comp = component_map[node.component_id]
             
+            output_artifact_paths = {}
+            for output in comp.outputs:
+                output_path = f"/tmp/outputs/{output.name}"
+                raw = output.name
+                san = _sanitize(raw)
+                output_artifact_paths[raw] = output_path
+                if san != raw:
+                    output_artifact_paths[san] = output_path
+
             # Resolve arguments
             resolved_args = []
             if comp.args:
@@ -71,12 +86,22 @@ def compile_pipeline(pipeline: Pipeline) -> str:
                 for edge in incoming_edges:
                     source_task = tasks.get(edge.source)
                     if source_task and edge.sourceHandle:
-                        inputs_map[edge.targetHandle] = source_task.outputs[edge.sourceHandle]
+                        available = source_task.outputs
+                        key = edge.sourceHandle
+                        if key not in available:
+                            s = _sanitize(key)
+                            key = s if s in available else None
+                        if key is None or key not in available:
+                            continue
+                        input_path = f"/tmp/inputs/{edge.targetHandle}"
+                        inputs_map[edge.targetHandle] = dsl.InputArgumentPath(
+                            available[key],
+                            path=input_path
+                        )
                 
                 # 2. Check for constant values (user input)
                 if node.args:
                     for arg_name, arg_value in node.args.items():
-                        # Only use constant if not already connected
                         if arg_name not in inputs_map:
                             inputs_map[arg_name] = arg_value
 
@@ -84,22 +109,30 @@ def compile_pipeline(pipeline: Pipeline) -> str:
                 for arg in comp.args:
                     replaced = False
                     for input_name, output_param in inputs_map.items():
-                        placeholder = f"{{{{inputs.parameters.{input_name}}}}}"
-                        if placeholder == arg:
-                            resolved_args.append(str(output_param)) # Ensure it's stringified
+                        # Check for both parameter and artifact placeholders
+                        placeholders = [
+                            f"{{{{inputs.parameters.{input_name}}}}}",
+                            f"{{{{inputs.artifacts.{input_name}.path}}}}"
+                        ]
+                        
+                        if arg in placeholders:
+                            resolved_args.append(output_param)
                             replaced = True
                             break
                     
                     if not replaced:
                         resolved_args.append(arg)
-            
-            # Create ContainerOp
+
+            artifact_paths = [v for v in (inputs_map.values() if comp.args else []) if isinstance(v, dsl.InputArgumentPath)]
             task = dsl.ContainerOp(
                 name=node.label,
                 image=comp.image,
                 command=comp.command,
                 arguments=resolved_args if resolved_args else comp.args,
+                output_artifact_paths=output_artifact_paths,
+                artifact_argument_paths=artifact_paths if artifact_paths else None,
             )
+
             
             # Set resources (Component defaults)
             cpu_request = comp.resources.cpu_request
