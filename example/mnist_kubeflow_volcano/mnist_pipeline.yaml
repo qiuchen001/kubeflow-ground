@@ -89,14 +89,15 @@ deploymentSpec:
           '
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef preprocess_data(raw_data: Input[Dataset] = None, processed_data:\
-          \ Output[Dataset] = None):\n    import subprocess\n    import sys\n    cmd\
-          \ = [\"python\", \"/app/mnist_preprocess.py\"]\n    if raw_data is not None:\n\
-          \        cmd.extend([\"--input-dir\", raw_data.path])\n    cmd.extend([\"\
-          --output-data-dir\", processed_data.path])\n    print(f\"Running command:\
-          \ {' '.join(cmd)}\")\n    result = subprocess.run(cmd, capture_output=True,\
-          \ text=True)\n    print(\"STDOUT:\", result.stdout)\n    print(\"STDERR:\"\
-          , result.stderr)\n    if result.returncode != 0:\n        sys.exit(result.returncode)\n\
-          \n"
+          \ Output[Dataset] = None):\n    import subprocess\n    import sys\n    import\
+          \ os\n    cmd = [\"python\", \"/app/mnist_preprocess.py\"]\n    if raw_data\
+          \ is not None:\n        inp = raw_data.path\n        if os.path.isfile(inp):\n\
+          \            inp = os.path.dirname(inp)\n        cmd.extend([\"--input-dir\"\
+          , inp])\n    cmd.extend([\"--output-data-dir\", processed_data.path])\n\
+          \    print(f\"Running command: {' '.join(cmd)}\")\n    result = subprocess.run(cmd,\
+          \ capture_output=True, text=True)\n    print(\"STDOUT:\", result.stdout)\n\
+          \    print(\"STDERR:\", result.stderr)\n    if result.returncode != 0:\n\
+          \        sys.exit(result.returncode)\n\n"
         env:
         - name: AWS_REGION
           value: us-east-1
