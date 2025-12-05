@@ -53,7 +53,6 @@ components:
       parameters:
         accuracy:
           parameterType: NUMBER_DOUBLE
-defaultPipelineRoot: minio://minio-service.kubeflow.svc:9000/mlpipeline/mnist-runs
 deploymentSpec:
   executors:
     exec-importer:
@@ -102,7 +101,7 @@ deploymentSpec:
         - name: AWS_REGION
           value: us-east-1
         - name: AWS_ENDPOINT_URL
-          value: http://minio-service:9000
+          value: http://10.96.1.54:9000
         - name: S3_FORCE_PATH_STYLE
           value: 'true'
         - name: AWS_S3_FORCE_PATH_STYLE
@@ -162,7 +161,7 @@ deploymentSpec:
         - name: AWS_REGION
           value: us-east-1
         - name: AWS_ENDPOINT_URL
-          value: http://minio-service:9000
+          value: http://10.96.1.54:9000
         - name: S3_FORCE_PATH_STYLE
           value: 'true'
         - name: AWS_S3_FORCE_PATH_STYLE
@@ -198,8 +197,7 @@ root:
         taskInfo:
           name: importer
       preprocess-data:
-        cachingOptions:
-          enableCache: true
+        cachingOptions: {}
         componentRef:
           name: comp-preprocess-data
         dependentTasks:

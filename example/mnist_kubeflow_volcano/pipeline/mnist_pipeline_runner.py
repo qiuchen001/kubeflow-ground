@@ -28,7 +28,8 @@ except FileNotFoundError:
 @dsl.pipeline(
     name='mnist-volcano-training',
     # 🌟 替换为你的实际 Artifact Store (e.g., gs://my-bucket/runs 或 s3://my-bucket/runs)
-    pipeline_root='minio://minio-service.kubeflow.svc:9000/mlpipeline/mnist-runs' 
+    # pipeline_root='minio://minio-service.kubeflow.svc:9000/mlpipeline/mnist-runs' 
+    # pipeline_root='s3://mlpipeline/mnist-runs-v2'
 )
 def mnist_pipeline(
     epochs: int = 10, 
@@ -44,6 +45,7 @@ def mnist_pipeline(
     )
     # 2. 数据预处理任务
     prep_task = preprocess_op(raw_data=raw_data_importer.outputs['artifact'])
+    prep_task.set_caching_options(False)
     
     # 3. 模型训练任务 (配置 Volcano 调度)
     train_task = train_op(
@@ -70,9 +72,10 @@ def mnist_pipeline(
         # 注入 Region (S3 Client 需要)
         prep_task.set_env_variable('AWS_REGION', 'us-east-1')
         # 注入 Endpoint (指向集群内 MinIO IP, 绕过 DNS/PathStyle 问题)
-        # prep_task.set_env_variable('AWS_ENDPOINT_URL', 'http://10.96.1.54:9000')
+        prep_task.set_env_variable('AWS_ENDPOINT_URL', 'http://10.96.1.54:9000')
         # prep_task.set_env_variable('AWS_ENDPOINT_URL', 'minio-service.kubeflow:9000')
-        prep_task.set_env_variable('AWS_ENDPOINT_URL', 'http://minio-service:9000')
+        # prep_task.set_env_variable('AWS_ENDPOINT_URL', 'http://minio-service.kubeflow:9000')
+        # prep_task.set_env_variable('AWS_ENDPOINT_URL', 'http://minio-service:9000')
         # 强制 Path Style (解决 DNS 解析问题)
         prep_task.set_env_variable('S3_FORCE_PATH_STYLE', 'true')
         prep_task.set_env_variable('AWS_S3_FORCE_PATH_STYLE', 'true')
@@ -90,9 +93,10 @@ def mnist_pipeline(
         # 注入 Region (S3 Client 需要)
         train_task.set_env_variable('AWS_REGION', 'us-east-1')
         # 注入 Endpoint (指向集群内 MinIO IP, 绕过 DNS/PathStyle 问题)
-        # train_task.set_env_variable('AWS_ENDPOINT_URL', 'http://10.96.1.54:9000')
+        train_task.set_env_variable('AWS_ENDPOINT_URL', 'http://10.96.1.54:9000')
         # train_task.set_env_variable('AWS_ENDPOINT_URL', 'minio-service.kubeflow:9000')
-        train_task.set_env_variable('AWS_ENDPOINT_URL', 'http://minio-service:9000')
+        # train_task.set_env_variable('AWS_ENDPOINT_URL', 'http://minio-service.kubeflow:9000')
+        # train_task.set_env_variable('AWS_ENDPOINT_URL', 'http://minio-service:9000')
         # 强制 Path Style (解决 DNS 解析问题)
         train_task.set_env_variable('S3_FORCE_PATH_STYLE', 'true')
         train_task.set_env_variable('AWS_S3_FORCE_PATH_STYLE', 'true')
@@ -133,7 +137,8 @@ try:
     run = client.create_run_from_pipeline_func(
         mnist_pipeline,
         arguments={'epochs': 15, 'lr': 0.0001},
-        experiment_name='MNIST Volcano Training Run'
+        experiment_name='MNIST Volcano Training Run',
+        pipeline_root='s3://mlpipeline/mnist-runs-v2'
     )
     print(f"\n--- 工作流运行成功！ ---")
     print(f"Run ID: {run.run_id}")
