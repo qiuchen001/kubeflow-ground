@@ -281,7 +281,8 @@ if __name__ == "__main__":
                 "name": "preprocess",
                 "image": "qiuchen123/kfp-mlops:mnist-prep-v2",
                 "command": ["python", "/app/mnist_preprocess.py"],
-                "inputs": {"raw-data": "s3://mlpipeline/raw/train_data.csv"},
+                # "inputs": {"raw-data": "s3://mlpipeline/raw/train_data.csv"},
+                "inputs": {"raw-data": "s3://mlpipeline/raw"},
                 "outputs": {"clean-data": "s3://mlpipeline/processed/clean_data.csv"}
             },
             # 组件2：模型训练
