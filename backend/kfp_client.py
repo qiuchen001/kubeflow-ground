@@ -23,15 +23,36 @@ def get_run_status(run_id: str) -> str:
     client = Client(host=KFP_ENDPOINT)
     try:
         run = client.get_run(run_id)
-        status = None
+        # Try common attributes across KFP v1/v2
+        for obj in (run, getattr(run, 'run', None)):
+            if obj is None:
+                continue
+            for attr in ('state', 'status', 'phase'):
+                try:
+                    val = getattr(obj, attr)
+                    if isinstance(val, str) and val:
+                        return val
+                except Exception:
+                    pass
+        # Try dict/json conversions if available
         try:
-            status = run.run.status
+            if hasattr(run, 'to_dict'):
+                d = run.to_dict()
+                status = d.get('state') or d.get('status') or (d.get('run') or {}).get('state') or (d.get('run') or {}).get('status')
+                if status:
+                    return status
         except Exception:
-            try:
-                status = run.status
-            except Exception:
-                status = str(run)
-        return status or "unknown"
+            pass
+        try:
+            if hasattr(run, 'to_json'):
+                import json
+                jd = json.loads(run.to_json())
+                status = jd.get('state') or jd.get('status') or (jd.get('run') or {}).get('state') or (jd.get('run') or {}).get('status')
+                if status:
+                    return status
+        except Exception:
+            pass
+        return "unknown"
     except Exception as e:
         print(f"Failed to get run status: {e}")
         raise e

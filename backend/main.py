@@ -73,9 +73,17 @@ def run_pipeline(pipeline_id: str):
         # Submit
         run_name = f"Run {pipe.name}"
         result = kfp_client.submit_pipeline(yaml_file, run_name)
-        pipe.last_run_id = result.run_id
+        # Robust run_id extraction across KFP versions
+        run_id = getattr(result, 'run_id', None)
+        if not run_id:
+            try:
+                run_obj = getattr(result, 'run', None)
+                run_id = getattr(run_obj, 'id', None) or getattr(result, 'id', None)
+            except Exception:
+                run_id = None
+        pipe.last_run_id = run_id
         storage.save_pipeline(pipe)
-        return {"status": "submitted", "run_id": result.run_id}
+        return {"status": "submitted", "run_id": run_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
