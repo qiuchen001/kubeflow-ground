@@ -87,6 +87,7 @@
 
 <script setup>
 import { ref, onMounted, markRaw } from 'vue'
+import { useRoute } from 'vue-router'
 import { VueFlow, useVueFlow, MarkerType } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -108,17 +109,65 @@ const pipelineName = ref('My Pipeline')
 const elements = ref([])
 const selectedNode = ref(null)
 const isDropdownOpen = ref(false)
+const currentPipelineId = ref(null)
+const route = useRoute()
 
 let id = 0
 const getId = () => `node_${id++}`
 
 onMounted(async () => {
-  // Load components
+  // Load components first
   try {
     const res = await axios.get('http://localhost:8000/components')
     components.value = res.data
   } catch (e) {
     console.error('Failed to load components', e)
+  }
+
+  // If opening with pipelineId, load and restore canvas
+  const pid = route.params.pipelineId
+  if (pid) {
+    try {
+      const pres = await axios.get(`http://localhost:8000/pipelines/${pid}`)
+      const pipe = pres.data
+      currentPipelineId.value = pipe.id
+      pipelineName.value = pipe.name || pipelineName.value
+
+      const compIndex = new Map(components.value.map(c => [c.id, c]))
+
+      // Add nodes
+      const restoredNodes = pipe.nodes.map(n => {
+        const c = compIndex.get(n.component_id)
+        return {
+          id: n.id,
+          type: 'custom',
+          label: n.label,
+          position: n.position,
+          data: {
+            componentId: n.component_id,
+            label: n.label,
+            inputs: c?.inputs || [],
+            outputs: c?.outputs || [],
+            args: n.args || {},
+            resources: n.resources || {}
+          }
+        }
+      })
+      addNodes(restoredNodes)
+
+      // Add edges
+      const restoredEdges = pipe.edges.map(e => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+        markerEnd: MarkerType.ArrowClosed
+      }))
+      addEdges(restoredEdges)
+    } catch (e) {
+      alert('Failed to load pipeline: ' + e.message)
+    }
   }
 })
 
@@ -195,6 +244,7 @@ const runPipeline = async () => {
   }))
   
   const pipeline = {
+    id: currentPipelineId.value || null,
     name: pipelineName.value,
     nodes,
     edges
@@ -204,6 +254,7 @@ const runPipeline = async () => {
     // 1. Save pipeline
     const saveRes = await axios.post('http://localhost:8000/pipelines', pipeline)
     const pipelineId = saveRes.data.id
+    currentPipelineId.value = pipelineId
     
     // 2. Run pipeline
     const runRes = await axios.post(`http://localhost:8000/pipelines/${pipelineId}/run`)

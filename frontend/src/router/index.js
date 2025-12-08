@@ -22,6 +22,11 @@ const routes = [
         path: '/pipeline-builder',
         name: 'PipelineBuilder',
         component: PipelineBuilder
+    },
+    {
+        path: '/pipeline-builder/:pipelineId',
+        name: 'PipelineBuilderEdit',
+        component: PipelineBuilder
     }
 ]
 
