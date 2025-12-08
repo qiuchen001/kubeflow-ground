@@ -1,5 +1,6 @@
 from kfp import dsl
 from kfp import compiler
+from kfp.components import load_component_from_text
 import tempfile
 import os
 from typing import Dict
@@ -26,6 +27,58 @@ def compile_pipeline(pipeline: Pipeline) -> str:
         if s and s[0].isdigit():
             s = '_' + s
         return s
+
+    def _build_component_yaml(comp: Component, artifact_inputs: set):
+        in_map = {i.name: _sanitize(i.name) for i in comp.inputs}
+        out_map = {o.name: _sanitize(o.name) for o in comp.outputs}
+        lines = []
+        lines.append(f"name: {comp.name}")
+        if comp.inputs:
+            lines.append("inputs:")
+            for inp in comp.inputs:
+                lines.append(f"  - name: {in_map[inp.name]}")
+                lines.append(f"    type: {'Dataset' if inp.name in artifact_inputs else 'string'}")
+        if comp.outputs:
+            lines.append("outputs:")
+            for out in comp.outputs:
+                lines.append(f"  - name: {out_map[out.name]}")
+                lines.append(f"    type: Dataset")
+        lines.append("implementation:")
+        lines.append("  container:")
+        lines.append(f"    image: {comp.image}")
+        if comp.command:
+            lines.append("    command:")
+            for c in comp.command:
+                lines.append(f"    - {c}")
+        if comp.args:
+            lines.append("    args:")
+            # Map args: parameters and outputs
+            output_names = {o.name for o in comp.outputs}
+            for a in comp.args:
+                replaced = False
+                # parameter placeholder {{inputs.parameters.<name>}}
+                if a.startswith("{{") and "inputs.parameters." in a:
+                    name = a.split("inputs.parameters.", 1)[1].split("}}", 1)[0]
+                    san = in_map.get(name, _sanitize(name))
+                    if name in artifact_inputs:
+                        lines.append(f"    - {{inputPath: {san}}}")
+                    else:
+                        lines.append(f"    - {{inputValue: {san}}}")
+                    replaced = True
+                else:
+                    # output path mapping for tokens containing /tmp/outputs/<out>
+                    for out in output_names:
+                        token = f"/tmp/outputs/{out}"
+                        if a == token:
+                            san_out = out_map.get(out, _sanitize(out))
+                            lines.append(f"    - {{outputPath: {san_out}}}")
+                            replaced = True
+                            break
+                if not replaced:
+                    sa = str(a)
+                    sa = sa.replace('\\', '\\\\').replace('"', '\\"')
+                    lines.append(f"    - \"{sa}\"")
+        return "\n".join(lines), in_map, out_map
 
     @dsl.pipeline(
         name=pipeline.name,
@@ -65,73 +118,26 @@ def compile_pipeline(pipeline: Pipeline) -> str:
             # Find the node object
             node = next(n for n in pipeline.nodes if n.id == node_id)
             comp = component_map[node.component_id]
-            
-            output_artifact_paths = {}
-            for output in comp.outputs:
-                output_path = f"/tmp/outputs/{output.name}"
-                raw = output.name
-                san = _sanitize(raw)
-                output_artifact_paths[raw] = output_path
-                if san != raw:
-                    output_artifact_paths[san] = output_path
-
-            # Resolve arguments
-            resolved_args = []
-            if comp.args:
-                # Create a map of input_name -> output_param/value
-                inputs_map = {}
-                
-                # 1. Check for connections (upstream outputs)
-                incoming_edges = [e for e in pipeline.edges if e.target == node.id and e.targetHandle]
-                for edge in incoming_edges:
-                    source_task = tasks.get(edge.source)
-                    if source_task and edge.sourceHandle:
-                        available = source_task.outputs
-                        key = edge.sourceHandle
-                        if key not in available:
-                            s = _sanitize(key)
-                            key = s if s in available else None
-                        if key is None or key not in available:
-                            continue
-                        input_path = f"/tmp/inputs/{edge.targetHandle}"
-                        inputs_map[edge.targetHandle] = dsl.InputArgumentPath(
-                            available[key],
-                            path=input_path
-                        )
-                
-                # 2. Check for constant values (user input)
-                if node.args:
-                    for arg_name, arg_value in node.args.items():
-                        if arg_name not in inputs_map:
-                            inputs_map[arg_name] = arg_value
-
-                # Replace placeholders in args
-                for arg in comp.args:
-                    replaced = False
-                    for input_name, output_param in inputs_map.items():
-                        # Check for both parameter and artifact placeholders
-                        placeholders = [
-                            f"{{{{inputs.parameters.{input_name}}}}}",
-                            f"{{{{inputs.artifacts.{input_name}.path}}}}"
-                        ]
-                        
-                        if arg in placeholders:
-                            resolved_args.append(output_param)
-                            replaced = True
-                            break
-                    
-                    if not replaced:
-                        resolved_args.append(arg)
-
-            artifact_paths = [v for v in (inputs_map.values() if comp.args else []) if isinstance(v, dsl.InputArgumentPath)]
-            task = dsl.ContainerOp(
-                name=node.label,
-                image=comp.image,
-                command=comp.command,
-                arguments=resolved_args if resolved_args else comp.args,
-                output_artifact_paths=output_artifact_paths,
-                artifact_argument_paths=artifact_paths if artifact_paths else None,
-            )
+            incoming_edges = [e for e in pipeline.edges if e.target == node.id and e.targetHandle]
+            artifact_inputs = set(e.targetHandle for e in incoming_edges if e.targetHandle)
+            spec_text, in_map, out_map = _build_component_yaml(comp, artifact_inputs)
+            comp_func = load_component_from_text(spec_text)
+            # Build kwargs for component call
+            kwargs = {}
+            # Edge-based inputs
+            for edge in incoming_edges:
+                source_task = tasks.get(edge.source)
+                if source_task and edge.sourceHandle:
+                    target_key = in_map.get(edge.targetHandle, _sanitize(edge.targetHandle))
+                    src_out_key = _sanitize(edge.sourceHandle)
+                    kwargs[target_key] = source_task.outputs[src_out_key]
+            # Constant inputs from node.args
+            if node.args:
+                for arg_name, arg_value in node.args.items():
+                    key = in_map.get(arg_name, _sanitize(arg_name))
+                    if key not in kwargs:
+                        kwargs[key] = arg_value
+            task = comp_func(**kwargs)
 
             
             # Set resources (Component defaults)
@@ -149,16 +155,22 @@ def compile_pipeline(pipeline: Pipeline) -> str:
                 if node.resources.get("memory_limit"): memory_limit = node.resources["memory_limit"]
                 # GPU override not implemented in UI yet, but logic would be similar
 
-            if cpu_request: task.set_cpu_request(cpu_request)
-            if cpu_limit: task.set_cpu_limit(cpu_limit)
-            if memory_request: task.set_memory_request(memory_request)
-            if memory_limit: task.set_memory_limit(memory_limit)
-            if gpu_limit: task.set_gpu_limit(gpu_limit)
+            try:
+                if cpu_request: task.set_cpu_request(cpu_request)
+                if cpu_limit: task.set_cpu_limit(cpu_limit)
+                if memory_request: task.set_memory_request(memory_request)
+                if memory_limit: task.set_memory_limit(memory_limit)
+                if gpu_limit: task.set_gpu_limit(gpu_limit)
+            except Exception:
+                pass
             
             # Volcano annotations
-            if comp.volcano_enabled:
-                task.add_pod_annotation("scheduling.k8s.io/group-name", f"pipeline-{pipeline.id}")
-                task.add_pod_annotation("schedulerName", "volcano")
+            try:
+                if comp.volcano_enabled:
+                    task.add_pod_annotation("scheduling.k8s.io/group-name", f"pipeline-{pipeline.id}")
+                    task.add_pod_annotation("schedulerName", "volcano")
+            except Exception:
+                pass
             
             tasks[node.id] = task
             

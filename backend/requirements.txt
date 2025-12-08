@@ -1,7 +1,7 @@
 fastapi
 uvicorn[standard]
 pydantic
-kfp<2.0.0
+kfp==2.15.1
 jinja2
 python-multipart
 requests

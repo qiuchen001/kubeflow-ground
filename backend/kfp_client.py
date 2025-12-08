@@ -1,20 +1,18 @@
-import kfp
 import os
+from kfp import Client
 
 KFP_ENDPOINT = os.getenv("KFP_ENDPOINT", "http://localhost:30088")
+PIPELINE_ROOT = os.getenv("PIPELINE_ROOT", os.getenv("KFP_PIPELINE_ROOT", "s3://mlpipeline/test-pipeline-root"))
 
 def submit_pipeline(pipeline_file_path: str, run_name: str):
-    client = kfp.Client(host=KFP_ENDPOINT)
-    # Create experiment if not exists? Or just default.
-    # client.create_run_from_pipeline_package(pipeline_file_path, arguments={})
-    # Using run_pipeline for V2 usually, or create_run_from_pipeline_package for V1/V2.
-    
+    client = Client(host=KFP_ENDPOINT)
     try:
         run_result = client.create_run_from_pipeline_package(
             pipeline_file=pipeline_file_path,
             arguments={},
             run_name=run_name,
-            experiment_name="Default"
+            experiment_name="Default",
+            pipeline_root=PIPELINE_ROOT,
         )
         return run_result
     except Exception as e:
