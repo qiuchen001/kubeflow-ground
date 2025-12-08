@@ -1,6 +1,7 @@
 from kfp import dsl
 from kfp import compiler
 from kfp.components import load_component_from_text
+from kfp import kubernetes
 import tempfile
 import os
 from typing import Dict
@@ -138,6 +139,27 @@ def compile_pipeline(pipeline: Pipeline) -> str:
                     if key not in kwargs:
                         kwargs[key] = arg_value
             task = comp_func(**kwargs)
+
+            # Auto-inject MinIO environment variables and credentials
+            try:
+                task.set_env_variable('AWS_REGION', 'us-east-1')
+                task.set_env_variable('AWS_ENDPOINT_URL', 'http://10.96.1.54:9000')
+                task.set_env_variable('AWS_ENDPOINT_URL_S3', 'http://10.96.1.54:9000')
+                task.set_env_variable('S3_FORCE_PATH_STYLE', 'true')
+                task.set_env_variable('AWS_S3_FORCE_PATH_STYLE', 'true')
+                task.set_env_variable('AWS_USE_PATH_STYLE_REQUESTS', 'true')
+                task.set_env_variable('AWS_S3_USE_PATH_STYLE', 'true')
+                kubernetes.use_secret_as_env(
+                    task=task,
+                    secret_name='mlpipeline-minio-artifact',
+                    secret_key_to_env={
+                        'accesskey': 'AWS_ACCESS_KEY_ID',
+                        'secretkey': 'AWS_SECRET_ACCESS_KEY'
+                    }
+                )
+                task.set_caching_options(False)
+            except Exception:
+                pass
 
             
             # Set resources (Component defaults)
