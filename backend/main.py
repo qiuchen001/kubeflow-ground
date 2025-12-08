@@ -116,12 +116,43 @@ def get_pipeline_node_statuses(pipeline_id: str):
         return {}
     try:
         statuses = kfp_client.get_run_node_statuses(pipe.last_run_id)
-        # Map runtime display names to node ids when possible: expect pattern "<node_id>-<componentName>"
         mapped = {}
-        for name, st in statuses.items():
-            if isinstance(name, str) and '-' in name:
+
+        node_ids = {n.id for n in getattr(pipe, 'nodes', [])}
+
+        label_counts = {}
+        for n in getattr(pipe, 'nodes', []):
+            label_counts[n.label] = label_counts.get(n.label, 0) + 1
+        label_to_id = {n.label: n.id for n in getattr(pipe, 'nodes', []) if label_counts.get(n.label, 0) == 1}
+
+        comp_counts = {}
+        comp_name_to_id = {}
+        for n in getattr(pipe, 'nodes', []):
+            try:
+                comp = storage.get_component(n.component_id)
+            except Exception:
+                comp = None
+            if comp and getattr(comp, 'name', None):
+                nm = comp.name
+                comp_counts[nm] = comp_counts.get(nm, 0) + 1
+                comp_name_to_id.setdefault(nm, []).append(n.id)
+
+        unique_comp_to_id = {nm: ids[0] for nm, ids in comp_name_to_id.items() if comp_counts.get(nm, 0) == 1}
+
+        for name, st in (statuses or {}).items():
+            if not isinstance(name, str):
+                continue
+            if '-' in name:
                 nid = name.split('-', 1)[0]
-                mapped[nid] = st
+                if nid in node_ids:
+                    mapped[nid] = st
+                    continue
+            if name in label_to_id:
+                mapped[label_to_id[name]] = st
+                continue
+            if name in unique_comp_to_id:
+                mapped[unique_comp_to_id[name]] = st
+
         return mapped or statuses
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

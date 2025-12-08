@@ -119,8 +119,6 @@ def get_run_node_statuses(run_id: str) -> dict:
             rd = getattr(run, 'run_details', None)
             dd = None
 
-            print(rd)
-
             if rd is not None:
                 if isinstance(rd, dict):
                     dd = rd
@@ -128,7 +126,6 @@ def get_run_node_statuses(run_id: str) -> dict:
                     dd = rd.to_dict()
                 elif hasattr(rd, 'to_json'):
                     dd = json.loads(rd.to_json())
-            print("dd:", dd)
             if dd:
                 items = dd.get('task_runs') or dd.get('tasks') or dd.get('nodes') or dd.get('task_details') or []
                 out = {}
