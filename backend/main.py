@@ -60,6 +60,13 @@ def get_pipeline(pipeline_id: str):
         raise HTTPException(status_code=404, detail="Pipeline not found")
     return pipe
 
+@app.delete("/pipelines/{pipeline_id}")
+def delete_pipeline(pipeline_id: str):
+    success = storage.delete_pipeline(pipeline_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    return {"status": "deleted"}
+
 @app.post("/pipelines/{pipeline_id}/run")
 def run_pipeline(pipeline_id: str):
     pipe = storage.get_pipeline(pipeline_id)
@@ -97,6 +104,25 @@ def get_pipeline_status(pipeline_id: str):
     try:
         status = kfp_client.get_run_status(pipe.last_run_id)
         return {"run_id": pipe.last_run_id, "status": status}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/pipelines/{pipeline_id}/nodes/status")
+def get_pipeline_node_statuses(pipeline_id: str):
+    pipe = storage.get_pipeline(pipeline_id)
+    if not pipe:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    if not pipe.last_run_id:
+        return {}
+    try:
+        statuses = kfp_client.get_run_node_statuses(pipe.last_run_id)
+        # Map runtime display names to node ids when possible: expect pattern "<node_id>-<componentName>"
+        mapped = {}
+        for name, st in statuses.items():
+            if isinstance(name, str) and '-' in name:
+                nid = name.split('-', 1)[0]
+                mapped[nid] = st
+        return mapped or statuses
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -165,6 +165,20 @@ onMounted(async () => {
         markerEnd: MarkerType.ArrowClosed
       }))
       addEdges(restoredEdges)
+
+      // Fetch node runtime statuses and apply to nodes
+      try {
+        const sres = await axios.get(`http://localhost:8000/pipelines/${pid}/nodes/status`)
+        const statusMap = sres.data || {}
+        getNodes.value.forEach(n => {
+          const st = statusMap[n.id]
+          if (st) {
+            n.data.runtimeStatus = st
+          }
+        })
+      } catch (e) {
+        // ignore status fetch errors
+      }
     } catch (e) {
       alert('Failed to load pipeline: ' + e.message)
     }

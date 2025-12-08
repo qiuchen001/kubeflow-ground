@@ -150,6 +150,11 @@ def compile_pipeline(pipeline: Pipeline) -> str:
                         else:
                             kwargs[key] = arg_value
             task = comp_func(**kwargs)
+            # Ensure task display name contains node id for status mapping
+            try:
+                task.set_display_name(f"{node.id}-{comp.name}")
+            except Exception:
+                pass
 
             # Auto-inject MinIO environment variables and credentials
             try:

@@ -1,7 +1,9 @@
 <template>
-  <div class="bg-white border-2 border-gray-200 rounded shadow-sm min-w-[180px] text-xs relative group">
+  <div class="bg-white rounded shadow-sm min-w-[180px] text-xs relative group"
+       :class="borderClass">
     <div class="bg-gray-50 p-2 border-b font-bold flex justify-between items-center">
       <div class="truncate flex-1 text-center">{{ data.label }}</div>
+      <span v-if="data.runtimeStatus" :class="statusBadgeClass" class="ml-2 px-2 py-0.5 rounded text-[10px]">{{ data.runtimeStatus }}</span>
       
       <!-- Menu Button -->
       <button 
@@ -73,12 +75,28 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 
 const props = defineProps(['id', 'data'])
 const { removeNodes } = useVueFlow()
 const showMenu = ref(false)
+
+const borderClass = computed(() => {
+  const s = (props?.data?.runtimeStatus || '').toLowerCase()
+  if (s === 'succeeded') return 'border-2 border-green-400'
+  if (s === 'running') return 'border-2 border-blue-400'
+  if (s === 'failed') return 'border-2 border-red-400'
+  return 'border-2 border-gray-200'
+})
+
+const statusBadgeClass = computed(() => {
+  const s = (props?.data?.runtimeStatus || '').toLowerCase()
+  if (s === 'succeeded') return 'bg-green-100 text-green-700 border border-green-300'
+  if (s === 'running') return 'bg-blue-100 text-blue-700 border border-blue-300'
+  if (s === 'failed') return 'bg-red-100 text-red-700 border border-red-300'
+  return 'bg-gray-100 text-gray-700 border border-gray-300'
+})
 
 const deleteNode = () => {
   removeNodes([props.id])

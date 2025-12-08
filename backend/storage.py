@@ -77,3 +77,10 @@ def get_pipeline(pipeline_id: str) -> Optional[Pipeline]:
             data = json.load(f)
             return Pipeline(**data)
     return None
+
+def delete_pipeline(pipeline_id: str) -> bool:
+    file_path = os.path.join(PIPELINES_DIR, f"{pipeline_id}.json")
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        return True
+    return False

@@ -22,8 +22,9 @@
             </div>
             <div class="flex items-center space-x-2">
               <router-link :to="`/pipeline-builder/${pipe.id}`" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm">Edit</router-link>
-              <button @click="toggle(pipe.id)" class="px-3 py-2 rounded border text-sm hover:bg-gray-50">Details</button>
+              <router-link :to="`/pipeline-builder/${pipe.id}`" class="px-3 py-2 rounded border text-sm hover:bg-gray-50">Details</router-link>
               <button @click="run(pipe)" class="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 text-sm">Run</button>
+              <button @click="confirmDelete(pipe)" class="bg-red-600 text-white px-3 py-2 rounded hover:bg-red-700 text-sm">Delete</button>
             </div>
           </div>
           <div v-if="expanded[pipe.id]" class="mt-3 bg-gray-50 p-3 rounded border text-sm">
@@ -50,6 +51,7 @@ import axios from 'axios'
 const pipelines = ref([])
 const expanded = ref({})
 const statuses = ref({})
+const pipeToDelete = ref(null)
 
 const fetchPipelines = async () => {
   try {
@@ -88,10 +90,23 @@ const refreshStatuses = async () => {
 }
 
 const statusClass = (s) => {
-  if (s === 'Succeeded') return 'text-green-600'
-  if (s === 'Running') return 'text-blue-600'
-  if (s === 'Failed') return 'text-red-600'
+  const v = (s || '').toLowerCase()
+  if (v === 'succeeded' || v === 'succeed' || v === 'success') return 'text-green-600'
+  if (v === 'running' || v === 'in_progress') return 'text-blue-600'
+  if (v === 'failed' || v === 'error') return 'text-red-600'
+  if (v === 'queued' || v === 'pending') return 'text-yellow-600'
   return 'text-gray-500'
+}
+
+const confirmDelete = async (pipe) => {
+  const ok = window.confirm(`Delete pipeline: ${pipe.name}?`)
+  if (!ok) return
+  try {
+    await axios.delete(`http://localhost:8000/pipelines/${pipe.id}`)
+    await fetchPipelines()
+  } catch (e) {
+    alert('Error deleting pipeline: ' + e.message)
+  }
 }
 
 onMounted(fetchPipelines)
