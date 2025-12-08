@@ -15,9 +15,10 @@
               <div class="font-medium">{{ pipe.name }}</div>
               <div class="text-xs text-gray-500">ID: {{ pipe.id }}</div>
             </div>
-            <div class="w-48 text-sm text-gray-600">
+            <div class="w-64 text-sm text-gray-600">
               <div>Nodes: {{ pipe.nodes?.length || 0 }}</div>
               <div>Edges: {{ pipe.edges?.length || 0 }}</div>
+              <div class="mt-1">Status: <span :class="statusClass(statuses[pipe.id])">{{ statuses[pipe.id] || 'unknown' }}</span></div>
             </div>
             <div class="flex items-center space-x-2">
               <router-link :to="`/pipeline-builder/${pipe.id}`" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm">Edit</router-link>
@@ -48,11 +49,13 @@ import axios from 'axios'
 
 const pipelines = ref([])
 const expanded = ref({})
+const statuses = ref({})
 
 const fetchPipelines = async () => {
   try {
     const res = await axios.get('http://localhost:8000/pipelines')
     pipelines.value = res.data
+    await refreshStatuses()
   } catch (e) {
     alert('Error loading pipelines: ' + e.message)
   }
@@ -62,6 +65,7 @@ const run = async (pipe) => {
   try {
     const res = await axios.post(`http://localhost:8000/pipelines/${pipe.id}/run`)
     alert(`Submitted: ${res.data.run_id}`)
+    await refreshStatuses()
   } catch (e) {
     alert('Error submitting pipeline: ' + e.message)
   }
@@ -69,6 +73,25 @@ const run = async (pipe) => {
 
 const toggle = (id) => {
   expanded.value[id] = !expanded.value[id]
+}
+
+const refreshStatuses = async () => {
+  const promises = pipelines.value.map(async (p) => {
+    try {
+      const r = await axios.get(`http://localhost:8000/pipelines/${p.id}/status`)
+      statuses.value[p.id] = r.data.status
+    } catch (e) {
+      statuses.value[p.id] = 'unknown'
+    }
+  })
+  await Promise.all(promises)
+}
+
+const statusClass = (s) => {
+  if (s === 'Succeeded') return 'text-green-600'
+  if (s === 'Running') return 'text-blue-600'
+  if (s === 'Failed') return 'text-red-600'
+  return 'text-gray-500'
 }
 
 onMounted(fetchPipelines)

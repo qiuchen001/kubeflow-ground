@@ -18,3 +18,20 @@ def submit_pipeline(pipeline_file_path: str, run_name: str):
     except Exception as e:
         print(f"Failed to submit pipeline: {e}")
         raise e
+
+def get_run_status(run_id: str) -> str:
+    client = Client(host=KFP_ENDPOINT)
+    try:
+        run = client.get_run(run_id)
+        status = None
+        try:
+            status = run.run.status
+        except Exception:
+            try:
+                status = run.status
+            except Exception:
+                status = str(run)
+        return status or "unknown"
+    except Exception as e:
+        print(f"Failed to get run status: {e}")
+        raise e

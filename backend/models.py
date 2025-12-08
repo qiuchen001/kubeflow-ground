@@ -52,3 +52,4 @@ class Pipeline(BaseModel):
     description: Optional[str] = None
     nodes: List[PipelineNode] = []
     edges: List[PipelineEdge] = []
+    last_run_id: Optional[str] = None

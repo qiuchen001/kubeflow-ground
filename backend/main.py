@@ -73,8 +73,22 @@ def run_pipeline(pipeline_id: str):
         # Submit
         run_name = f"Run {pipe.name}"
         result = kfp_client.submit_pipeline(yaml_file, run_name)
-        
+        pipe.last_run_id = result.run_id
+        storage.save_pipeline(pipe)
         return {"status": "submitted", "run_id": result.run_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/pipelines/{pipeline_id}/status")
+def get_pipeline_status(pipeline_id: str):
+    pipe = storage.get_pipeline(pipeline_id)
+    if not pipe:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    if not pipe.last_run_id:
+        return {"status": "unknown"}
+    try:
+        status = kfp_client.get_run_status(pipe.last_run_id)
+        return {"run_id": pipe.last_run_id, "status": status}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
