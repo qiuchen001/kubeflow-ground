@@ -155,6 +155,20 @@ onMounted(async () => {
       })
       addNodes(restoredNodes)
 
+      const maxId = Math.max(...restoredNodes.map(n => {
+        const m = /^node_(\d+)$/.exec(n.id)
+        return m ? parseInt(m[1], 10) : -1
+      }))
+      if (Number.isFinite(maxId) && maxId >= 0) {
+        id = maxId + 1
+      } else {
+        const currMax = Math.max(...getNodes.value.map(n => {
+          const m = /^node_(\d+)$/.exec(n.id)
+          return m ? parseInt(m[1], 10) : -1
+        }))
+        id = (Number.isFinite(currMax) && currMax >= 0) ? currMax + 1 : getNodes.value.length
+      }
+
       // Add edges
       const restoredEdges = pipe.edges.map(e => ({
         id: e.id,
