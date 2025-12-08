@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import ComponentList from '../views/ComponentList.vue'
 import PipelineBuilder from '../views/PipelineBuilder.vue'
+import PipelinesList from '../views/PipelinesList.vue'
 
 const routes = [
     {
@@ -14,6 +15,11 @@ const routes = [
     },
     {
         path: '/pipelines',
+        name: 'PipelinesList',
+        component: PipelinesList
+    },
+    {
+        path: '/pipeline-builder',
         name: 'PipelineBuilder',
         component: PipelineBuilder
     }
