@@ -40,6 +40,21 @@
       </div>
     </div>
 
+    <!-- Command & Args -->
+    <div class="bg-white p-4 rounded shadow">
+      <h2 class="text-lg font-semibold mb-4">Command & Args</h2>
+      <div class="grid grid-cols-1 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Command (JSON array)</label>
+          <textarea v-model="commandStr" placeholder='["python", "/app/script.py"]' class="mt-1 block w-full border rounded p-2" rows="3"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Args (JSON array)</label>
+          <textarea v-model="argsStr" placeholder='["--flag", "{{inputs.parameters.input-name}}"]' class="mt-1 block w-full border rounded p-2" rows="3"></textarea>
+        </div>
+      </div>
+    </div>
+
     <!-- Inputs & Outputs -->
     <div class="bg-white p-4 rounded shadow">
       <h2 class="text-lg font-semibold mb-4">Inputs & Outputs</h2>

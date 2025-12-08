@@ -121,7 +121,14 @@ def compile_pipeline(pipeline: Pipeline) -> str:
             comp = component_map[node.component_id]
             incoming_edges = [e for e in pipeline.edges if e.target == node.id and e.targetHandle]
             artifact_inputs = set(e.targetHandle for e in incoming_edges if e.targetHandle)
-            spec_text, in_map, out_map = _build_component_yaml(comp, artifact_inputs)
+            importer_inputs = set()
+            if node.args:
+                for arg_name, arg_value in node.args.items():
+                    if isinstance(arg_value, str) and arg_value.startswith('s3://'):
+                        importer_inputs.add(arg_name)
+            if (not comp.command) and (not comp.args):
+                raise ValueError(f"Component '{comp.name}' has empty command and args; please provide at least one")
+            spec_text, in_map, out_map = _build_component_yaml(comp, artifact_inputs | importer_inputs)
             comp_func = load_component_from_text(spec_text)
             # Build kwargs for component call
             kwargs = {}
@@ -137,7 +144,11 @@ def compile_pipeline(pipeline: Pipeline) -> str:
                 for arg_name, arg_value in node.args.items():
                     key = in_map.get(arg_name, _sanitize(arg_name))
                     if key not in kwargs:
-                        kwargs[key] = arg_value
+                        if isinstance(arg_value, str) and arg_value.startswith('s3://'):
+                            imp = dsl.importer(artifact_uri=arg_value, artifact_class=dsl.Dataset)
+                            kwargs[key] = imp.outputs['artifact']
+                        else:
+                            kwargs[key] = arg_value
             task = comp_func(**kwargs)
 
             # Auto-inject MinIO environment variables and credentials
