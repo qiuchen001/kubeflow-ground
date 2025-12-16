@@ -101,9 +101,9 @@ deploymentSpec:
         - name: AWS_REGION
           value: us-east-1
         - name: AWS_ENDPOINT_URL
-          value: http://10.96.1.54:9000
+          value: http://10.96.2.78:9000
         - name: AWS_ENDPOINT_URL_S3
-          value: http://10.96.1.54:9000
+          value: http://10.96.2.78:9000
         - name: S3_FORCE_PATH_STYLE
           value: 'true'
         - name: AWS_S3_FORCE_PATH_STYLE
@@ -163,9 +163,9 @@ deploymentSpec:
         - name: AWS_REGION
           value: us-east-1
         - name: AWS_ENDPOINT_URL
-          value: http://10.96.1.54:9000
+          value: http://10.96.2.78:9000
         - name: AWS_ENDPOINT_URL_S3
-          value: http://10.96.1.54:9000
+          value: http://10.96.2.78:9000
         - name: S3_FORCE_PATH_STYLE
           value: 'true'
         - name: AWS_S3_FORCE_PATH_STYLE

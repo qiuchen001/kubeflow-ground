@@ -63,8 +63,8 @@ def create_dynamic_pipeline(interface: PipelineInterface):
             # 注入 Region
             task.set_env_variable('AWS_REGION', 'us-east-1')
             # 注入 Endpoint (使用 IP 绕过 DNS 问题)
-            task.set_env_variable('AWS_ENDPOINT_URL', 'http://10.96.1.54:9000')
-            task.set_env_variable('AWS_ENDPOINT_URL_S3', 'http://10.96.1.54:9000')
+            task.set_env_variable('AWS_ENDPOINT_URL', 'http://10.96.2.78:9000')
+            task.set_env_variable('AWS_ENDPOINT_URL_S3', 'http://10.96.2.78:9000')
             # 强制 Path Style
             task.set_env_variable('S3_FORCE_PATH_STYLE', 'true')
             task.set_env_variable('AWS_S3_FORCE_PATH_STYLE', 'true')
@@ -267,7 +267,7 @@ def create_dynamic_pipeline(interface: PipelineInterface):
 if __name__ == "__main__":
     # 配置MinIO
     minio_config = {
-        "endpoint": "http://10.96.1.54:9000",
+        "endpoint": "http://10.96.2.78:9000",
         "secret_name": "mlpipeline-minio-artifact"  # 已创建的K8s Secret
     }
 
