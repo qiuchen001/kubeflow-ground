@@ -1,0 +1,1 @@
+{"id":"0cf5b637-423a-4102-b5fc-a787a50ba33e","name":"mnist-prep-v1","description":"","image":"qiuchen123/kfp-mlops:mnist-prep-v1","command":[],"args":[],"inputs":[],"outputs":[],"resources":{"cpu_request":"","cpu_limit":"","memory_request":"","memory_limit":"","gpu_type":null,"gpu_limit":""},"volcano_enabled":false}
